@@ -2,12 +2,23 @@
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
+from enum import Enum
+
+# --- New Enum for Classification ---
+class Classification(Enum):
+    """
+    Enum for response classification categories as defined in the PRD.
+    """
+    COMPLIANT = "COMPLIANT"
+    NON_COMPLIANT = "NON_COMPLIANT"
+    PARTIAL_COMPLIANCE = "PARTIAL_COMPLIANCE"
+    ERROR = "ERROR"
+    AMBIGUOUS = "AMBIGUOUS"
 
 @dataclass
 class AdversarialPrompt:
     """
-    A data class representing a single adversarial prompt, structured
-    according to the schema defined in the PRD.
+    A data class representing a single adversarial prompt.
     """
     id: str
     category: str
@@ -43,3 +54,14 @@ class ModelResponse:
     model_name: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+
+# --- New Dataclass for Analysis Results ---
+@dataclass
+class AnalysisResult:
+    """
+    A data class to hold the results of a response analysis.
+    """
+    classification: Classification
+    explanation: str
+    vulnerability_score: float
+
