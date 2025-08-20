@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local data & reports
+aegis/reports/
+aegis/data/*.db
+*.sqlite3

@@ -1,0 +1,15 @@
+# Core Web & API Framework
+fastapi
+uvicorn[standard]
+sqlalchemy
+
+# Frontend Interface
+streamlit
+plotly
+
+# Testing Framework
+pytest
+requests
+
+# Utilities
+python-dotenv
