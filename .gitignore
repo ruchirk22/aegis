@@ -16,4 +16,3 @@ aegis/reports/
 aegis/data/*.db
 *.sqlite3
 .env
-.devcontainer/

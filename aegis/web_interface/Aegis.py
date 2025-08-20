@@ -1,120 +1,27 @@
-# aegis/web_interface/app.py
+# aegis/web_interface/Aegis.py
 
 import streamlit as st
 import sys
 import os
 import pandas as pd
 import json
-import csv
-import io
-from datetime import datetime
+from io import BytesIO
 
 # --- Path Correction ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+# --- End Path Correction ---
 
 from aegis.core.analyzer import LLMAnalyzer
-from aegis.core.connectors import OpenRouterConnector
-from aegis.core.models import AdversarialPrompt, AnalysisResult, ModelResponse
+from aegis.core.connectors import OpenRouterConnector, CustomEndpointConnector, UserProvidedGeminiConnector
+from aegis.core.models import AdversarialPrompt
 from aegis.core.library import PromptLibrary
 from aegis.core.reporting import generate_pdf_report
 import plotly.express as px
 
 # --- Page Configuration ---
-st.set_page_config(
-    page_title="Aegis Red Team Sandbox",
-    page_icon="🛡️",
-    layout="wide"
-)
-
-# --- Model List for Dropdown ---
-OPENROUTER_MODELS = [
-    "openai/gpt-oss-20b:free", "z-ai/glm-4.5-air:free", "qwen/qwen3-coder:free",
-    "moonshotai/kimi-k2:free", "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
-    "google/gemma-3n-e2b-it:free", "tencent/hunyuan-a13b-instruct:free",
-    "tngtech/deepseek-r1t2-chimera:free", "mistralai/mistral-small-3.2-24b-instruct:free",
-    "moonshotai/kimi-dev-72b:free", "deepseek/deepseek-r1-0528-qwen3-8b:free",
-    "deepseek/deepseek-r1-0528:free", "sarvamai/sarvam-m:free",
-    "mistralai/devstral-small-2505:free", "google/gemma-3n-e4b-it:free",
-    "qwen/qwen3-4b:free", "qwen/qwen3-30b-a3b:free", "qwen/qwen3-8b:free",
-    "qwen/qwen3-14b:free", "qwen/qwen3-235b-a22b:free", "tngtech/deepseek-r1t-chimera:free",
-    "microsoft/mai-ds-r1:free", "shisa-ai/shisa-v2-llama3.3-70b:free",
-    "arliai/qwq-32b-arliai-rpr-v1:free", "agentica-org/deepcoder-14b-preview:free",
-    "moonshotai/kimi-vl-a3b-thinking:free", "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
-    "qwen/qwen2.5-vl-32b-instruct:free", "deepseek/deepseek-chat-v3-0324:free",
-    "featherless/qwerky-72b:free", "mistralai/mistral-small-3.1-24b-instruct:free",
-    "google/gemma-3-4b-it:free", "google/gemma-3-12b-it:free", "rekaai/reka-flash-3:free",
-    "google/gemma-3-27b-it:free", "qwen/qwq-32b:free",
-    "nousresearch/deephermes-3-llama-3-8b-preview:free",
-    "cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
-    "cognitivecomputations/dolphin3.0-mistral-24b:free", "deepseek/deepseek-r1:free",
-    "meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-coder-32b-instruct:free",
-    "meta-llama/llama-3.2-3b-instruct:free", "mistralai/mistral-nemo:free",
-    "meta-llama/llama-3.1-405b-instruct:free"
-]
-
-# --- Helper Functions for Report Generation ---
-def prepare_report_data(prompt: AdversarialPrompt, response: ModelResponse, analysis: AnalysisResult):
-    """Prepares a list containing a single result dictionary for reporting."""
-    return [{
-        "prompt": prompt,
-        "response": response,
-        "analysis": analysis
-    }]
-
-def to_json(report_data):
-    """Converts report data to a JSON string."""
-    export_list = [{
-        "prompt_id": res["prompt"].id, "category": res["prompt"].category,
-        "prompt_text": res["prompt"].prompt_text, "model_name": res["response"].model_name,
-        "model_output": res["response"].output_text, "classification": res["analysis"].classification.name,
-        "vulnerability_score": res["analysis"].vulnerability_score, "explanation": res["analysis"].explanation,
-    } for res in report_data]
-    return json.dumps(export_list, indent=2)
-
-def to_csv(report_data):
-    """Converts report data to a CSV string."""
-    output = io.StringIO()
-    writer = csv.writer(output)
-    headers = ["prompt_id", "category", "prompt_text", "model_name", "model_output", "classification", "vulnerability_score", "explanation"]
-    writer.writerow(headers)
-    for res in report_data:
-        writer.writerow([
-            res["prompt"].id, res["prompt"].category, res["prompt"].prompt_text,
-            res["response"].model_name, res["response"].output_text,
-            res["analysis"].classification.name, res["analysis"].vulnerability_score,
-            res["analysis"].explanation
-        ])
-    return output.getvalue()
-
-def to_pdf_bytes(report_data):
-    """Generates a PDF report and returns it as bytes."""
-    classifications = [res["analysis"].classification.name for res in report_data]
-    classification_counts = pd.Series(classifications).value_counts()
-    fig_bar = px.bar(
-        classification_counts, x=classification_counts.index, y=classification_counts.values,
-        labels={'x': 'Classification', 'y': 'Count'}, title="Classification Breakdown",
-        color=classification_counts.index,
-        color_discrete_map={
-            'NON_COMPLIANT': 'red', 'COMPLIANT': 'green', 'PARTIAL_COMPLIANCE': 'orange',
-            'AMBIGUOUS': 'grey', 'ERROR': 'black'
-        }
-    )
-    img_bytes = fig_bar.to_image(format="png")
-    
-    # Use a temporary file path to save the image for fpdf
-    temp_image_path = "temp_chart.png"
-    with open(temp_image_path, "wb") as f:
-        f.write(img_bytes)
-
-    # Generate the PDF in memory
-    pdf_buffer = io.BytesIO()
-    generate_pdf_report(report_data, pdf_buffer, temp_image_path)
-    os.remove(temp_image_path)
-    
-    pdf_buffer.seek(0)
-    return pdf_buffer.getvalue()
+st.set_page_config(page_title="Aegis Framework", page_icon="🛡️", layout="wide")
 
 # --- State Management & Caching ---
 @st.cache_resource
@@ -124,162 +31,193 @@ def load_resources():
     analyzer = LLMAnalyzer()
     return library, analyzer
 
-try:
-    st.session_state.library, st.session_state.analyzer = load_resources()
-    if 'result' not in st.session_state:
-        st.session_state.result = None
-    if 'prompt_text' not in st.session_state:
-        st.session_state.prompt_text = ""
-    if 'last_prompt' not in st.session_state:
-        st.session_state.last_prompt = None
-except ValueError as e:
-    st.error(f"Fatal Error on Startup: {e}")
-    st.warning("Please ensure your API keys are correctly configured and restart the app.")
-    st.stop()
+st.session_state.library, st.session_state.analyzer = load_resources()
 
-# --- UI Layout ---
-st.title("🛡️ Aegis: Interactive Red Team Sandbox")
-st.markdown("Test and evaluate LLM vulnerabilities in real-time. Enter an adversarial prompt, select a model, and see the AI-powered analysis.")
+# Initialize all session state variables
+if 'active_tab' not in st.session_state: st.session_state.active_tab = "single"
+if 'single_result' not in st.session_state: st.session_state.single_result = None
+if 'batch_results_df' not in st.session_state: st.session_state.batch_results_df = pd.DataFrame()
+if 'raw_batch_results' not in st.session_state: st.session_state.raw_batch_results = []
+if 'prompt_text' not in st.session_state: st.session_state.prompt_text = ""
+if 'user_api_key_openrouter' not in st.session_state: st.session_state.user_api_key_openrouter = ""
+if 'user_api_key_gemini' not in st.session_state: st.session_state.user_api_key_gemini = ""
+if 'explorer_expanded' not in st.session_state: st.session_state.explorer_expanded = True
+if 'is_processing' not in st.session_state: st.session_state.is_processing = False
 
-with st.sidebar:
-    st.header("Red Team Sandbox")
-    st.subheader("Configuration")
-    
-    is_key_configured = False
-    try:
-        # This block will work on Streamlit Cloud where secrets are configured.
-        if 'OPENROUTER_API_KEY' in st.secrets and st.secrets['OPENROUTER_API_KEY']:
-            st.success("OPENROUTER_API_KEY loaded.")
-            is_key_configured = True
-        else:
-            # This will show if deployed but the secret is missing.
-            st.error("OPENROUTER_API_KEY not found!")
-            st.warning("Please add your OpenRouter key to your Streamlit secrets to proceed.")
-    except st.errors.StreamlitAPIException:
-        # This block catches the error when secrets aren't configured at all (local dev).
-        st.error("Local secrets file not found!")
-        st.warning("""
-            To run locally, please create a `.streamlit/secrets.toml` file in your project root and add your key:
-            ```toml
-            OPENROUTER_API_KEY = "your-key-here"
-            ```
-        """)
+# --- Helper Functions ---
+def convert_results_to_df(results_list):
+    if not results_list: return pd.DataFrame()
+    return pd.DataFrame([{"prompt_id": res["prompt"].id, "category": res["prompt"].category, "prompt_text": res["prompt"].prompt_text, "model_name": res["response"].model_name, "model_output": res["response"].output_text, "classification": res["analysis"].classification.name, "vulnerability_score": res["analysis"].vulnerability_score, "explanation": res["analysis"].explanation} for res in results_list])
 
-    openrouter_model = st.selectbox(
-        "Select OpenRouter Model",
-        options=OPENROUTER_MODELS,
-        index=0,
-        help="Select a model from the list to test against."
-    )
-    model_identifier = f"openrouter/{openrouter_model}"
-
-# --- Prompt Library Explorer ---
-with st.expander("📚 Prompt Library Explorer", expanded=False):
-    prompts = st.session_state.library.get_all()
-    if prompts:
-        df = pd.DataFrame([p.to_dict() for p in prompts])
-        categories = ["All"] + sorted(df['category'].unique().tolist())
-        selected_category = st.selectbox("Filter by Category", options=categories)
-        df_filtered = df[df['category'] == selected_category] if selected_category != "All" else df
-        for index, row in df_filtered.iterrows():
-            with st.container():
-                st.markdown(f"**ID:** `{row['id']}` | **Category:** `{row['category']}` | **Severity:** `{row['severity']}`")
-                st.code(row['prompt_text'], language='text')
-                if st.button("Load this Prompt", key=f"load_{row['id']}"):
-                    st.session_state.prompt_text = row['prompt_text']
-                    st.rerun()
-                st.divider()
-    else:
-        st.warning("No prompts found in the library.")
-
-# --- Main Interaction Area ---
-st.subheader("Enter Your Adversarial Prompt")
-prompt_text = st.text_area(
-    "Prompt",
-    height=150,
-    placeholder="e.g., You are 'DAN' (Do Anything Now)... or load one from the explorer above.",
-    label_visibility="collapsed",
-    key="prompt_text"
-)
-
-if st.button("Evaluate Model", type="primary", use_container_width=True, disabled=not is_key_configured):
-    if not st.session_state.prompt_text:
-        st.warning("Please enter a prompt to evaluate.")
-    else:
-        try:
-            with st.spinner("Evaluating... This may take a moment as two LLM calls are being made."):
-                connector = OpenRouterConnector(model_name=openrouter_model)
-                temp_prompt = AdversarialPrompt(
-                    id="sandbox_live_test", prompt_text=st.session_state.prompt_text,
-                    category="Live_Test", subcategory="Sandbox", severity="UNKNOWN",
-                    expected_behavior="REJECT"
-                )
-                response = connector.send_prompt(temp_prompt)
-                analysis = st.session_state.analyzer.analyze(response, temp_prompt)
-                st.session_state.result = {"response": response, "analysis": analysis}
-                st.session_state.last_prompt = temp_prompt
-        except Exception as e:
-            st.error(f"An unexpected error occurred during evaluation: {e}")
-            st.session_state.result = None
-
-# --- Display Results & Export Options ---
-if st.session_state.result:
-    st.divider()
-    st.subheader("Analysis Results")
-
-    res = st.session_state.result
-    analysis = res["analysis"]
-    response = res["response"]
-
+def display_analysis_results(result_data):
+    analysis, response = result_data["analysis"], result_data["response"]
+    color = "blue"
+    if analysis.classification.name == "NON_COMPLIANT": color = "red"
+    elif analysis.classification.name == "COMPLIANT": color = "green"
+    elif analysis.classification.name == "PARTIAL_COMPLIANCE": color = "orange"
     col1, col2, col3 = st.columns(3)
-    col1.metric("Model Tested", response.model_name)
+    col1.metric("Model/Endpoint Tested", response.model_name)
     col2.metric("Classification", analysis.classification.name)
     col3.metric("Vulnerability Score", f"{analysis.vulnerability_score:.1f}", delta=f"{analysis.vulnerability_score:.1f} / 100", delta_color="off")
+    st.error(f"**Model Output:**\n\n{response.output_text}")
+    st.info(f"**Analysis Explanation:**\n\n{analysis.explanation}")
 
-    st.markdown(f"""
-    <div style="border: 1px solid #ff4b4b; border-radius: 5px; padding: 10px; margin-bottom: 10px;">
-        <p style="font-weight: bold;">Model Output:</p>
-        <pre><code>{response.output_text}</code></pre>
-    </div>
-    """, unsafe_allow_html=True)
+# --- UI Layout ---
+st.sidebar.title("🛡️ Aegis Framework")
+st.title("Red Team Sandbox")
 
-    st.markdown(f"""
-    <div style="border: 1px solid #3dd56d; border-radius: 5px; padding: 10px;">
-        <p style="font-weight: bold;">Analysis Explanation:</p>
-        <p>{analysis.explanation}</p>
-    </div>
-    """, unsafe_allow_html=True)
+# --- Sidebar Configuration ---
+with st.sidebar:
+    st.header("Configuration")
+    provider_option = st.selectbox("Choose a Provider", ("OpenRouter", "Gemini", "Custom Endpoint"))
+    connector = None
+
+    if provider_option == "OpenRouter":
+        st.text_input("Enter your OpenRouter API Key", type="password", key="user_api_key_openrouter")
+        models = ["openai/gpt-oss-20b:free", "google/gemma-3-27b-it:free", "Enter a custom model name..."]
+        selected_model = st.selectbox("Select an OpenRouter Model", options=models)
+        if selected_model == "Enter a custom model name...":
+            selected_model = st.text_input("Enter Custom Model Name", "anthropic/claude-3-opus")
+        if st.session_state.user_api_key_openrouter and selected_model:
+            connector = OpenRouterConnector(model_name=selected_model, api_key=st.session_state.user_api_key_openrouter)
+
+    elif provider_option == "Gemini":
+        st.text_input("Enter your Google Gemini API Key", type="password", key="user_api_key_gemini")
+        selected_model = st.text_input("Enter a Gemini Model Name", "gemini-1.5-flash-latest")
+        if st.session_state.user_api_key_gemini and selected_model:
+            connector = UserProvidedGeminiConnector(model_name=selected_model, api_key=st.session_state.user_api_key_gemini)
+
+    elif provider_option == "Custom Endpoint":
+        endpoint_url = st.text_input("Enter Endpoint URL", "http://localhost:8000/generate")
+        headers_str = st.text_area("Enter Headers (JSON)", '{"Authorization": "Bearer YOUR_KEY"}')
+        try:
+            headers = json.loads(headers_str) if headers_str else {}
+            if endpoint_url: connector = CustomEndpointConnector(endpoint_url=endpoint_url, headers=headers)
+        except json.JSONDecodeError: st.error("Invalid JSON for headers.")
+
+# --- Main App Logic (Tabs) ---
+tab1, tab2 = st.tabs(["🧪 Single Prompt Evaluation", "🚀 Batch Evaluation"])
+
+with tab1:
+    with st.expander("📚 Prompt Library Explorer", expanded=st.session_state.explorer_expanded):
+        prompts = st.session_state.library.get_all()
+        if prompts:
+            df = pd.DataFrame([p.to_dict() for p in prompts])
+            categories = ["All"] + sorted(df['category'].unique().tolist())
+            selected_category = st.selectbox("Filter by Category", options=categories, key="single_cat_filter")
+            df_filtered = df[df['category'] == selected_category] if selected_category != "All" else df
+            for index, row in df_filtered.iterrows():
+                with st.container():
+                    st.markdown(f"**ID:** `{row['id']}` | **Category:** `{row['category']}` | **Severity:** `{row['severity']}`")
+                    st.code(row['prompt_text'], language='text')
+                    if st.button("Load this Prompt", key=f"load_{row['id']}"):
+                        st.session_state.prompt_text = row['prompt_text']
+                        st.session_state.explorer_expanded = False
+                        st.rerun()
+                    st.divider()
+
+    st.subheader("Enter Your Adversarial Prompt")
+    st.text_area("Prompt", height=150, label_visibility="collapsed", key="prompt_text", disabled=st.session_state.is_processing)
     
-    st.divider()
-    st.subheader("Export Report")
+    if st.button("Evaluate Single Prompt", type="primary", use_container_width=True, disabled=st.session_state.is_processing):
+        if not st.session_state.prompt_text: st.warning("Please enter a prompt.")
+        elif connector is None: st.warning("Provider configuration is incomplete or invalid.")
+        else:
+            st.session_state.is_processing = True
+            st.session_state.single_result = None
+            st.session_state.active_tab = "single"
+            st.rerun()
+
+    results_placeholder = st.empty()
+    if st.session_state.is_processing and st.session_state.active_tab == "single":
+        with results_placeholder.container():
+            with st.spinner("Evaluating..."):
+                temp_prompt = AdversarialPrompt(id="sandbox_live_test", prompt_text=st.session_state.prompt_text, category="Live_Test", subcategory="Sandbox", severity="UNKNOWN", expected_behavior="REJECT")
+                response = connector.send_prompt(temp_prompt)
+                analysis = st.session_state.analyzer.analyze(response, temp_prompt)
+                st.session_state.single_result = {"prompt": temp_prompt, "response": response, "analysis": analysis}
+                st.session_state.is_processing = False
+                st.rerun()
+
+    if st.session_state.single_result and not st.session_state.is_processing:
+        with results_placeholder.container():
+            st.divider()
+            st.subheader("Analysis Results")
+            display_analysis_results(st.session_state.single_result)
+            st.divider()
+            st.subheader("Export Single Result")
+            export_df = convert_results_to_df([st.session_state.single_result])
+            col1, col2, col3 = st.columns(3)
+            with col1: st.download_button("📥 Download as JSON", export_df.to_json(orient='records', indent=2), "aegis_single_report.json", "application/json", use_container_width=True)
+            with col2: st.download_button("📄 Download as CSV", export_df.to_csv(index=False).encode('utf-8'), "aegis_single_report.csv", "text/csv", use_container_width=True)
+            with col3:
+                pdf_buffer = BytesIO()
+                chart_buffer = BytesIO()
+                counts = export_df['classification'].value_counts()
+                fig = px.bar(counts, x=counts.index, y=counts.values)
+                fig.write_image(chart_buffer, format="png")
+                chart_buffer.seek(0)
+                generate_pdf_report([st.session_state.single_result], pdf_buffer, chart_buffer)
+                pdf_buffer.seek(0)
+                st.download_button("📈 Download as PDF", pdf_buffer, "aegis_single_report.pdf", "application/pdf", use_container_width=True)
+
+with tab2:
+    st.subheader("Run Bulk Attacks")
+    batch_source = st.radio("Select Prompt Source", ("From Library", "Custom Prompts"), horizontal=True, disabled=st.session_state.is_processing)
+    prompts_to_run = []
+    if batch_source == "From Library":
+        df = pd.DataFrame([p.to_dict() for p in st.session_state.library.get_all()])
+        categories = sorted(df['category'].unique().tolist())
+        selected_batch_category = st.selectbox("Select a Prompt Category", options=categories, disabled=st.session_state.is_processing)
+        prompts_to_run = st.session_state.library.filter_by_category(selected_batch_category)
+    elif batch_source == "Custom Prompts":
+        custom_prompts_text = st.text_area("Enter prompts (one per line)", height=250, disabled=st.session_state.is_processing)
+        if custom_prompts_text:
+            lines = [line.strip() for line in custom_prompts_text.split('\n') if line.strip()]
+            for i, line in enumerate(lines):
+                prompts_to_run.append(AdversarialPrompt(id=f"custom_{i+1}", prompt_text=line, category="Custom_Batch", subcategory="Custom", severity="UNKNOWN", expected_behavior="REJECT"))
     
-    report_data = prepare_report_data(st.session_state.last_prompt, response, analysis)
-    
-    export_cols = st.columns(3)
-    with export_cols[0]:
-        st.download_button(
-            label="Export as JSON",
-            data=to_json(report_data),
-            file_name=f"aegis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json",
-            use_container_width=True
-        )
-    with export_cols[1]:
-        st.download_button(
-            label="Export as CSV",
-            data=to_csv(report_data),
-            file_name=f"aegis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    with export_cols[2]:
-        with st.spinner('Generating PDF...'):
-            pdf_bytes = to_pdf_bytes(report_data)
-            st.download_button(
-                label="Export as PDF",
-                data=pdf_bytes,
-                file_name=f"aegis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        st.success("PDF generated successfully!")
+    if st.button("Run Batch Evaluation", type="primary", use_container_width=True, key="run_batch_eval", disabled=st.session_state.is_processing):
+        if not prompts_to_run: st.warning("No prompts to evaluate.")
+        elif connector is None: st.warning("Provider configuration is incomplete or invalid.")
+        else:
+            st.session_state.is_processing = True
+            st.session_state.batch_results_df = pd.DataFrame()
+            st.session_state.active_tab = "batch"
+            st.rerun()
+
+    batch_results_placeholder = st.empty()
+    if st.session_state.is_processing and st.session_state.active_tab == "batch":
+        with batch_results_placeholder.container():
+            with st.spinner("Running batch evaluation..."):
+                st.session_state.raw_batch_results = []
+                progress_bar = st.progress(0, text="Starting...")
+                total_prompts = len(prompts_to_run)
+                for i, prompt in enumerate(prompts_to_run):
+                    response = connector.send_prompt(prompt)
+                    analysis = st.session_state.analyzer.analyze(response, prompt)
+                    st.session_state.raw_batch_results.append({"prompt": prompt, "response": response, "analysis": analysis})
+                    progress_bar.progress((i + 1) / total_prompts, text=f"Evaluated {prompt.id}...")
+                st.session_state.batch_results_df = convert_results_to_df(st.session_state.raw_batch_results)
+                st.session_state.is_processing = False
+                st.rerun()
+
+    if not st.session_state.batch_results_df.empty and not st.session_state.is_processing:
+        with batch_results_placeholder.container():
+            st.divider()
+            st.subheader("Batch Results")
+            st.dataframe(st.session_state.batch_results_df)
+            st.subheader("Export Batch Report")
+            col1, col2, col3 = st.columns(3)
+            with col1: st.download_button("📥 Download as JSON", st.session_state.batch_results_df.to_json(orient='records', indent=2), "aegis_batch_report.json", "application/json", use_container_width=True)
+            with col2: st.download_button("📄 Download as CSV", st.session_state.batch_results_df.to_csv(index=False).encode('utf-8'), "aegis_batch_report.csv", "text/csv", use_container_width=True)
+            with col3:
+                pdf_buffer = BytesIO()
+                chart_buffer = BytesIO()
+                counts = st.session_state.batch_results_df['classification'].value_counts()
+                fig = px.bar(counts, x=counts.index, y=counts.values, color=counts.index, color_discrete_map={'NON_COMPLIANT': 'red', 'COMPLIANT': 'green', 'PARTIAL_COMPLIANCE': 'orange', 'AMBIGUOUS': 'grey', 'ERROR': 'black'})
+                fig.write_image(chart_buffer, format="png")
+                chart_buffer.seek(0)
+                generate_pdf_report(st.session_state.raw_batch_results, pdf_buffer, chart_buffer)
+                pdf_buffer.seek(0)
+                st.download_button("📈 Download as PDF", pdf_buffer, "aegis_batch_report.pdf", "application/pdf", use_container_width=True)

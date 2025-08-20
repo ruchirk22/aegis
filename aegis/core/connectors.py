@@ -1,35 +1,17 @@
 # aegis/core/connectors.py
 
 import os
+import json
+import requests
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from openai import OpenAI
 import google.generativeai as genai
-import streamlit as st # <-- Import Streamlit
 
 from .models import ModelResponse, AdversarialPrompt
 
+# Load environment variables for the CLI and the internal evaluator model
 load_dotenv()
-
-def _get_api_key(secret_key: str) -> str | None:
-    """
-    Retrieves an API key with deployment-awareness.
-    
-    Tries to get the key from Streamlit's secrets manager first.
-    If not found (e.g., running in a non-Streamlit environment like the CLI),
-    it falls back to environment variables.
-    """
-    try:
-        # Check Streamlit's secrets if running in a Streamlit context
-        if hasattr(st, 'secrets') and secret_key in st.secrets:
-            return st.secrets[secret_key]
-    except Exception:
-        # App is not running in Streamlit, or secrets are not available.
-        # Fallback to environment variables is the default behavior.
-        pass
-        
-    # Fallback to environment variables
-    return os.getenv(secret_key)
 
 class ModelConnector(ABC):
     """Abstract Base Class for all model connectors."""
@@ -42,69 +24,79 @@ class ModelConnector(ABC):
         """Sends a prompt to the respective model API."""
         pass
 
-class GeminiConnector(ModelConnector):
-    """Connector for Google Gemini models."""
+class InternalGeminiConnector(ModelConnector):
+    """
+    Connector for Google Gemini models, used internally by the AI Analyzer.
+    This version relies on environment variables for stability during deployment.
+    """
     def __init__(self, model_name: str = "gemini-1.5-flash-latest"):
         super().__init__(model_name)
-        api_key = _get_api_key("GEMINI_API_KEY") # <-- Use the helper function
+        # This key MUST be set in the deployment environment (e.g., Streamlit Secrets)
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found. Set it in your Streamlit secrets or environment variables.")
+            raise ValueError("GEMINI_API_KEY for the evaluator model is not set in the environment.")
         genai.configure(api_key=api_key)
         self.client = genai.GenerativeModel(self.model_name)
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
             response = self.client.generate_content(prompt.prompt_text)
-            # The .text property can be None if the response is blocked.
-            # Handle this gracefully.
-            output_text = ""
-            if response.parts:
-                output_text = response.text
-
-            metadata = {
-                "finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback and response.prompt_feedback.block_reason else "OK"
-            }
-            return ModelResponse(
-                output_text=output_text.strip(),
-                prompt_id=prompt.id,
-                model_name=self.model_name,
-                metadata=metadata
-            )
+            output_text = response.text or ""
+            metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
+            return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=self.model_name, metadata=metadata)
         except Exception as e:
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
+class UserProvidedGeminiConnector(ModelConnector):
+    """Connector for Google Gemini models using a user-provided API key."""
+    def __init__(self, model_name: str, api_key: str):
+        super().__init__(model_name)
+        if not api_key:
+            raise ValueError("Gemini API key was not provided.")
+        genai.configure(api_key=api_key)
+        self.client = genai.GenerativeModel(self.model_name)
+
+    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+        # This logic is identical to the internal one, just uses a different client instance
+        try:
+            response = self.client.generate_content(prompt.prompt_text)
+            output_text = response.text or ""
+            metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
+            return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=self.model_name, metadata=metadata)
+        except Exception as e:
+            return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class OpenRouterConnector(ModelConnector):
-    """
-    Flexible connector for models available on OpenRouter.
-    """
-    def __init__(self, model_name: str):
+    """Flexible connector for models on OpenRouter, requires a user-provided API key."""
+    def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
-        api_key = _get_api_key("OPENROUTER_API_KEY") # <-- Use the helper function
         if not api_key:
-            raise ValueError("OPENROUTER_API_KEY not found. Set it in your Streamlit secrets or environment variables.")
-        
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-        )
+            raise ValueError("OpenRouter API key was not provided.")
+        self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
-            chat_completion = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt.prompt_text}],
-            )
+            chat_completion = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt.prompt_text}])
             output_text = chat_completion.choices[0].message.content or ""
-            metadata = {
-                "finish_reason": chat_completion.choices[0].finish_reason,
-                "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0
-            }
-            return ModelResponse(
-                output_text=output_text.strip(),
-                prompt_id=prompt.id,
-                model_name=f"openrouter/{self.model_name}",
-                metadata=metadata
-            )
+            metadata = {"finish_reason": chat_completion.choices[0].finish_reason, "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0}
+            return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=f"openrouter/{self.model_name}", metadata=metadata)
+        except Exception as e:
+            return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
+
+class CustomEndpointConnector(ModelConnector):
+    """Connector for any custom REST API endpoint."""
+    def __init__(self, endpoint_url: str, headers: dict):
+        super().__init__(model_name=endpoint_url)
+        self.endpoint_url = endpoint_url
+        self.headers = headers
+
+    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+        try:
+            payload = {"prompt": prompt.prompt_text}
+            response = requests.post(self.endpoint_url, json=payload, headers=self.headers, timeout=60)
+            response.raise_for_status()
+            response_json = response.json()
+            output_text = response_json.get("response", "Error: 'response' key not found in JSON.")
+            return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=self.model_name)
         except Exception as e:
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))

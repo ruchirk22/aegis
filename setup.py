@@ -6,7 +6,7 @@ setup(
     name="aegis-framework",
     version="1.0.0",
     author="Ruchir Kulkarni", # You can change this
-    author_email="mailtoruchirk@gmail.com", # And this
+    author_email="ruchirkulkarni22@gmail.com", # And this
     description="Aegis: An open-source LLM Red Teaming and Evaluation Framework.",
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
