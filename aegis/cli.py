@@ -1,6 +1,10 @@
 # aegis/cli.py
 
 import typer
+import json
+import csv
+from typing import Optional, List, Dict, Any
+
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -9,7 +13,7 @@ from rich.progress import Progress
 from aegis.core.library import PromptLibrary
 from aegis.core.connectors import GeminiConnector, OpenRouterConnector, ModelConnector
 from aegis.core.models import ModelResponse, AnalysisResult
-from aegis.core.analyzer import LLMAnalyzer # <-- Import the new LLMAnalyzer
+from aegis.core.analyzer import LLMAnalyzer
 
 app = typer.Typer(
     name="aegis",
@@ -20,6 +24,7 @@ console = Console()
 
 # --- Helper Functions (get_connector, display_single_result) remain the same ---
 def get_connector(model_identifier: str) -> ModelConnector:
+    # ... (implementation is unchanged)
     parts = model_identifier.lower().split('/')
     provider = parts[0]
     try:
@@ -39,6 +44,7 @@ def get_connector(model_identifier: str) -> ModelConnector:
         raise typer.Exit(code=1)
 
 def display_single_result(response: ModelResponse, analysis: AnalysisResult):
+    # ... (implementation is unchanged)
     table = Table(title="Aegis Evaluation Result", show_header=True, header_style="bold magenta")
     table.add_column("Field", style="dim", width=20)
     table.add_column("Value")
@@ -54,16 +60,57 @@ def display_single_result(response: ModelResponse, analysis: AnalysisResult):
     console.print(Panel(response.output_text, title="[cyan]Model Output[/cyan]", border_style="cyan"))
     console.print(Panel(analysis.explanation, title="[cyan]Analysis Explanation[/cyan]", border_style="cyan"))
 
+# --- New Export Functions ---
+
+def save_results_to_json(results: List[Dict[str, Any]], filepath: str):
+    """Saves the detailed evaluation results to a JSON file."""
+    export_data = []
+    for result in results:
+        export_data.append({
+            "prompt_id": result["prompt"].id,
+            "category": result["prompt"].category,
+            "prompt_text": result["prompt"].prompt_text,
+            "model_name": result["response"].model_name,
+            "model_output": result["response"].output_text,
+            "classification": result["analysis"].classification.name,
+            "vulnerability_score": result["analysis"].vulnerability_score,
+            "explanation": result["analysis"].explanation,
+        })
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(export_data, f, indent=2)
+
+def save_results_to_csv(results: List[Dict[str, Any]], filepath: str):
+    """Saves the detailed evaluation results to a CSV file."""
+    headers = [
+        "prompt_id", "category", "prompt_text", "model_name", "model_output",
+        "classification", "vulnerability_score", "explanation"
+    ]
+    with open(filepath, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        for result in results:
+            writer.writerow({
+                "prompt_id": result["prompt"].id,
+                "category": result["prompt"].category,
+                "prompt_text": result["prompt"].prompt_text,
+                "model_name": result["response"].model_name,
+                "model_output": result["response"].output_text,
+                "classification": result["analysis"].classification.name,
+                "vulnerability_score": result["analysis"].vulnerability_score,
+                "explanation": result["analysis"].explanation,
+            })
+
 # --- CLI Commands ---
 
 @app.command()
 def evaluate(
+    # ... (implementation is unchanged)
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run."),
     model: str = typer.Option("gemini", "--model", "-m", help="Model to evaluate (e.g., 'gemini', 'openrouter/google/gemini-flash-1.5')."),
 ):
     """Run a single adversarial prompt evaluation against a specified model."""
     console.print(f"[bold cyan]🚀 Starting Aegis Evaluation...[/bold cyan]")
-    library, analyzer = PromptLibrary(), LLMAnalyzer() # Use LLMAnalyzer here too
+    library, analyzer = PromptLibrary(), LLMAnalyzer()
     library.load_prompts()
     target_prompt = next((p for p in library.get_all() if p.id == prompt_id), None)
     if not target_prompt:
@@ -82,12 +129,14 @@ def evaluate(
 @app.command(name="batch-evaluate")
 def batch_evaluate(
     category: str = typer.Option(..., "--category", "-c", help="The category of prompts to evaluate."),
-    model: str = typer.Option("gemini", "--model", "-m", help="Model to evaluate (e.g., 'gemini', 'openrouter/google/gemini-flash-1.5')."),
+    model: str = typer.Option("gemini", "--model", "-m", help="Model to evaluate."),
+    output_json: Optional[str] = typer.Option(None, "--output-json", help="Path to save results as a JSON file."),
+    output_csv: Optional[str] = typer.Option(None, "--output-csv", help="Path to save results as a CSV file."),
 ):
-    """Run a batch evaluation for all prompts in a specific category."""
+    """Run a batch evaluation and optionally save the results to a file."""
     console.print(f"[bold cyan]🚀 Starting Batch Evaluation for category '{category}'...[/bold cyan]")
     
-    library, analyzer = PromptLibrary(), LLMAnalyzer() # <-- Use the new LLMAnalyzer
+    library, analyzer = PromptLibrary(), LLMAnalyzer()
     library.load_prompts()
     
     prompts_to_run = library.filter_by_category(category)
@@ -104,33 +153,40 @@ def batch_evaluate(
         for prompt in prompts_to_run:
             response = connector.send_prompt(prompt)
             analysis = analyzer.analyze(response, prompt)
-            results.append((prompt.id, analysis, response.output_text)) # <-- Store output_text
+            results.append({"prompt": prompt, "response": response, "analysis": analysis})
             progress.update(task, advance=1, description=f"[green]Evaluated {prompt.id}")
 
-    # --- Display Upgraded Summary Table ---
     summary_table = Table(title=f"Batch Evaluation Summary: {category}", show_header=True, header_style="bold blue")
     summary_table.add_column("Prompt ID", style="dim", width=10)
     summary_table.add_column("Classification", style="bold", width=20)
     summary_table.add_column("Score", width=10)
-    summary_table.add_column("Model Output", no_wrap=False) # <-- New column
+    summary_table.add_column("Model Output", no_wrap=False)
 
     total_score = 0
-    for prompt_id, analysis, output_text in results:
-        total_score += analysis.vulnerability_score
+    for result in results:
+        total_score += result["analysis"].vulnerability_score
         color = "white"
-        if analysis.classification.name == "NON_COMPLIANT": color = "red"
-        elif analysis.classification.name == "COMPLIANT": color = "green"
-        elif analysis.classification.name == "PARTIAL_COMPLIANCE": color = "yellow"
+        if result["analysis"].classification.name == "NON_COMPLIANT": color = "red"
+        elif result["analysis"].classification.name == "COMPLIANT": color = "green"
+        elif result["analysis"].classification.name == "PARTIAL_COMPLIANCE": color = "yellow"
         summary_table.add_row(
-            prompt_id,
-            f"[{color}]{analysis.classification.name}[/{color}]",
-            f"{analysis.vulnerability_score:.1f}",
-            output_text # <-- Display the model's raw output
+            result["prompt"].id,
+            f"[{color}]{result['analysis'].classification.name}[/{color}]",
+            f"{result['analysis'].vulnerability_score:.1f}",
+            result["response"].output_text
         )
     
     console.print(summary_table)
     average_score = total_score / len(results) if results else 0
     console.print(Panel(f"Average Vulnerability Score for this category: [bold cyan]{average_score:.2f}[/bold cyan]", title="Overall Result"))
+
+    # --- Handle Exporting ---
+    if output_json:
+        save_results_to_json(results, output_json)
+        console.print(f"✅ Full results saved to [bold green]{output_json}[/bold green]")
+    if output_csv:
+        save_results_to_csv(results, output_csv)
+        console.print(f"✅ Full results saved to [bold green]{output_csv}[/bold green]")
 
 
 @app.command()
@@ -138,4 +194,3 @@ def report():
     """(Placeholder) Generate a report from evaluation results."""
     console.print("[bold yellow]🚧 Report command is under construction.[/bold yellow]")
 
-    
