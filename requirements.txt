@@ -13,3 +13,8 @@ requests
 
 # Utilities
 python-dotenv
+typer[all]
+
+# API Clients
+openai
+google-generativeai
