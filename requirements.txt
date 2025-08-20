@@ -1,26 +1,12 @@
-# Core Web & API Framework
-fastapi
-uvicorn[standard]
-sqlalchemy
+# requirements.txt
 
-# Core CLI and App Frameworks
-rich
 streamlit
 pandas
-
-# Reporting & Visualization
-plotly
-
-# Testing Framework
-pytest
-requests
-
-# Utilities
-python-dotenv
-typer[all]
-fpdf2
-kaleido
-
-# API Clients
-openai
+typer
+rich
 google-generativeai
+openai
+python-dotenv
+fpdf2
+plotly
+kaleido

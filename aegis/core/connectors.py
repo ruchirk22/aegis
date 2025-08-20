@@ -3,12 +3,33 @@
 import os
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
-from openai import OpenAI, RateLimitError, APIError
+from openai import OpenAI
 import google.generativeai as genai
+import streamlit as st # <-- Import Streamlit
 
 from .models import ModelResponse, AdversarialPrompt
 
 load_dotenv()
+
+def _get_api_key(secret_key: str) -> str | None:
+    """
+    Retrieves an API key with deployment-awareness.
+    
+    Tries to get the key from Streamlit's secrets manager first.
+    If not found (e.g., running in a non-Streamlit environment like the CLI),
+    it falls back to environment variables.
+    """
+    try:
+        # Check Streamlit's secrets if running in a Streamlit context
+        if hasattr(st, 'secrets') and secret_key in st.secrets:
+            return st.secrets[secret_key]
+    except Exception:
+        # App is not running in Streamlit, or secrets are not available.
+        # Fallback to environment variables is the default behavior.
+        pass
+        
+    # Fallback to environment variables
+    return os.getenv(secret_key)
 
 class ModelConnector(ABC):
     """Abstract Base Class for all model connectors."""
@@ -21,28 +42,27 @@ class ModelConnector(ABC):
         """Sends a prompt to the respective model API."""
         pass
 
-class OpenAIConnector(ModelConnector):
-    """Connector for OpenAI models."""
-    def __init__(self, model_name: str = "gpt-3.5-turbo"):
-        super().__init__(model_name)
-        # Implementation remains the same...
-
 class GeminiConnector(ModelConnector):
     """Connector for Google Gemini models."""
     def __init__(self, model_name: str = "gemini-1.5-flash-latest"):
         super().__init__(model_name)
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = _get_api_key("GEMINI_API_KEY") # <-- Use the helper function
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables.")
+            raise ValueError("GEMINI_API_KEY not found. Set it in your Streamlit secrets or environment variables.")
         genai.configure(api_key=api_key)
         self.client = genai.GenerativeModel(self.model_name)
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
             response = self.client.generate_content(prompt.prompt_text)
-            output_text = response.text or ""
+            # The .text property can be None if the response is blocked.
+            # Handle this gracefully.
+            output_text = ""
+            if response.parts:
+                output_text = response.text
+
             metadata = {
-                "finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"
+                "finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback and response.prompt_feedback.block_reason else "OK"
             }
             return ModelResponse(
                 output_text=output_text.strip(),
@@ -53,15 +73,16 @@ class GeminiConnector(ModelConnector):
         except Exception as e:
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
+
 class OpenRouterConnector(ModelConnector):
     """
     Flexible connector for models available on OpenRouter.
     """
     def __init__(self, model_name: str):
         super().__init__(model_name)
-        api_key = os.getenv("OPENROUTER_API_KEY")
+        api_key = _get_api_key("OPENROUTER_API_KEY") # <-- Use the helper function
         if not api_key:
-            raise ValueError("OPENROUTER_API_KEY not found in environment variables.")
+            raise ValueError("OPENROUTER_API_KEY not found. Set it in your Streamlit secrets or environment variables.")
         
         self.client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
