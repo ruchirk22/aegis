@@ -12,6 +12,12 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/ruchirk22/aegis", # Add your GitHub repo URL here
     packages=find_packages(),
+    # --- New section to include non-Python files ---
+    package_data={
+        'aegis': ['prompts/*.json'],
+    },
+    include_package_data=True,
+    # --- End new section ---
     install_requires=[
         "typer[all]",
         "rich",
