@@ -282,3 +282,4 @@ if st.session_state.result:
                 mime="application/pdf",
                 use_container_width=True
             )
+        st.success("PDF generated successfully!")
