@@ -10,8 +10,6 @@ pandas
 
 # Reporting & Visualization
 plotly
-fpdf2
-kaleido==1.0.0  # Pinning version for compatibility
 
 # Testing Framework
 pytest
