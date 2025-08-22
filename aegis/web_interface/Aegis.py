@@ -16,7 +16,13 @@ if project_root not in sys.path:
 # --- End Path Correction ---
 
 from aegis.core.analyzer import LLMAnalyzer
-from aegis.core.connectors import OpenRouterConnector, CustomEndpointConnector, UserProvidedGeminiConnector
+from aegis.core.connectors import (
+    OpenRouterConnector, 
+    CustomEndpointConnector, 
+    UserProvidedGeminiConnector,
+    OpenAIConnector,
+    AnthropicConnector
+)
 from aegis.core.models import AdversarialPrompt
 from aegis.core.library import PromptLibrary
 from aegis.core.reporting import generate_pdf_report
@@ -43,14 +49,15 @@ if 'single_result' not in st.session_state: st.session_state.single_result = Non
 if 'batch_results_df' not in st.session_state: st.session_state.batch_results_df = pd.DataFrame()
 if 'raw_batch_results' not in st.session_state: st.session_state.raw_batch_results = []
 if 'prompt_text' not in st.session_state: st.session_state.prompt_text = ""
-if 'user_api_key_openrouter' not in st.session_state: st.session_state.user_api_key_openrouter = ""
+if 'user_api_key_openai' not in st.session_state: st.session_state.user_api_key_openai = ""
+if 'user_api_key_anthropic' not in st.session_state: st.session_state.user_api_key_anthropic = ""
 if 'user_api_key_gemini' not in st.session_state: st.session_state.user_api_key_gemini = ""
+if 'user_api_key_openrouter' not in st.session_state: st.session_state.user_api_key_openrouter = ""
 if 'explorer_expanded' not in st.session_state: st.session_state.explorer_expanded = True
 if 'is_processing' not in st.session_state: st.session_state.is_processing = False
 
 # --- Helper Functions ---
 def convert_result_to_flat_dict(result_data, session_id):
-    """Converts the nested result object to a flat dictionary for saving."""
     return {
         "session_id": session_id,
         "prompt_id": result_data["prompt"].id,
@@ -64,13 +71,11 @@ def convert_result_to_flat_dict(result_data, session_id):
     }
 
 def convert_results_to_df(results_list, session_id):
-    """Converts a list of result objects to a pandas DataFrame."""
     if not results_list: return pd.DataFrame()
     flat_list = [convert_result_to_flat_dict(res, session_id) for res in results_list]
     return pd.DataFrame(flat_list)
 
 def display_analysis_results(result_data):
-    """Renders the analysis results in a standardized format."""
     analysis, response = result_data["analysis"], result_data["response"]
     color = "blue"
     if analysis.classification.name == "NON_COMPLIANT": color = "red"
@@ -88,14 +93,33 @@ st.sidebar.title("🛡️ Aegis Framework")
 st.title("Red Team Sandbox")
 with st.sidebar:
     st.header("Configuration")
-    provider_option = st.selectbox("Choose a Provider", ("Gemini", "OpenRouter", "Custom Endpoint"))
+    provider_option = st.selectbox(
+        "Choose a Provider", 
+        ("Gemini", "OpenAI", "Claude (Anthropic)", "OpenRouter", "Custom Endpoint")
+    )
     connector = None
+
     if provider_option == "Gemini":
-        st.info("Select a vision-compatible model like 'gemini-1.5-flash-latest' for multi-modal tests.")
+        st.info("Recommended vision model: 'gemini-1.5-flash-latest'")
         st.text_input("Enter your Google Gemini API Key", type="password", key="user_api_key_gemini")
         selected_model = st.text_input("Enter a Gemini Model Name", "gemini-1.5-flash-latest")
         if st.session_state.user_api_key_gemini and selected_model:
             connector = UserProvidedGeminiConnector(model_name=selected_model, api_key=st.session_state.user_api_key_gemini)
+
+    elif provider_option == "OpenAI":
+        st.info("Recommended vision model: 'gpt-4o' or 'gpt-4o-mini'")
+        st.text_input("Enter your OpenAI API Key", type="password", key="user_api_key_openai")
+        selected_model = st.text_input("Enter an OpenAI Model Name", "gpt-4o-mini")
+        if st.session_state.user_api_key_openai and selected_model:
+            connector = OpenAIConnector(model_name=selected_model, api_key=st.session_state.user_api_key_openai)
+            
+    elif provider_option == "Claude (Anthropic)":
+        st.info("Recommended vision model: 'claude-3-5-sonnet-20240620'")
+        st.text_input("Enter your Anthropic API Key", type="password", key="user_api_key_anthropic")
+        selected_model = st.text_input("Enter a Claude Model Name", "claude-3-5-sonnet-20240620")
+        if st.session_state.user_api_key_anthropic and selected_model:
+            connector = AnthropicConnector(model_name=selected_model, api_key=st.session_state.user_api_key_anthropic)
+
     elif provider_option == "OpenRouter":
         st.warning("Multi-modal support for OpenRouter is not yet implemented.")
         st.text_input("Enter your OpenRouter API Key", type="password", key="user_api_key_openrouter")
@@ -105,6 +129,7 @@ with st.sidebar:
             selected_model = st.text_input("Enter Custom Model Name", "anthropic/claude-3-opus")
         if st.session_state.user_api_key_openrouter and selected_model:
             connector = OpenRouterConnector(model_name=selected_model, api_key=st.session_state.user_api_key_openrouter)
+
     elif provider_option == "Custom Endpoint":
         st.warning("Multi-modal support for Custom Endpoints is not yet implemented.")
         endpoint_url = st.text_input("Enter Endpoint URL", "http://localhost:8000/generate")
@@ -152,8 +177,7 @@ with tab1:
             st.warning("Please enter a text prompt.")
         elif connector is None: 
             st.warning("Provider configuration is incomplete or invalid.")
-        elif provider_option != "Gemini" and uploaded_image:
-            st.error("Image uploads are currently only supported for the Gemini provider.")
+        # REMOVED the check that restricted image uploads to only Gemini
         else:
             st.session_state.is_processing = True
             st.session_state.single_result = None

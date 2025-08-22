@@ -3,9 +3,11 @@
 import os
 import json
 import requests
+import base64
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from openai import OpenAI
+import anthropic
 import google.generativeai as genai
 from PIL import Image
 from io import BytesIO
@@ -25,11 +27,90 @@ class ModelConnector(ABC):
         """Sends a prompt to the respective model API."""
         pass
 
+class OpenAIConnector(ModelConnector):
+    """Connector for OpenAI models like GPT-4, with multi-modal support."""
+    def __init__(self, model_name: str, api_key: str):
+        super().__init__(model_name)
+        if not api_key:
+            raise ValueError("OpenAI API key was not provided.")
+        self.client = OpenAI(api_key=api_key)
+
+    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+        try:
+            content = [{"type": "text", "text": prompt.prompt_text}]
+            if prompt.image_data:
+                base64_image = base64.b64encode(prompt.image_data).decode('utf-8')
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                })
+
+            chat_completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": content}]
+            )
+            output_text = chat_completion.choices[0].message.content or ""
+            metadata = {
+                "finish_reason": chat_completion.choices[0].finish_reason,
+                "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0
+            }
+            return ModelResponse(
+                output_text=output_text.strip(),
+                prompt_id=prompt.id,
+                model_name=f"openai/{self.model_name}",
+                metadata=metadata
+            )
+        except Exception as e:
+            return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
+
+class AnthropicConnector(ModelConnector):
+    """Connector for Anthropic's Claude models, with multi-modal support."""
+    def __init__(self, model_name: str, api_key: str):
+        super().__init__(model_name)
+        if not api_key:
+            raise ValueError("Anthropic API key was not provided.")
+        self.client = anthropic.Anthropic(api_key=api_key)
+
+    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+        try:
+            content = [{"type": "text", "text": prompt.prompt_text}]
+            if prompt.image_data:
+                img = Image.open(BytesIO(prompt.image_data))
+                media_type = f"image/{img.format.lower()}"
+                base64_image = base64.b64encode(prompt.image_data).decode('utf-8')
+                # Anthropic recommends the image block comes before the text block
+                content.insert(0, {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": base64_image,
+                    },
+                })
+
+            message = self.client.messages.create(
+                model=self.model_name,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": content}]
+            )
+            output_text = message.content[0].text if message.content else ""
+            metadata = {
+                "stop_reason": message.stop_reason,
+                "usage": message.usage.input_tokens + message.usage.output_tokens
+            }
+            return ModelResponse(
+                output_text=output_text.strip(),
+                prompt_id=prompt.id,
+                model_name=f"anthropic/{self.model_name}",
+                metadata=metadata
+            )
+        except Exception as e:
+            return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
+
 class InternalGeminiConnector(ModelConnector):
-    """
-    Connector for Google Gemini models, used internally by the AI Analyzer.
-    (This remains text-only for now as the internal analyzer is text-based).
-    """
+    """Connector for Google Gemini models, used internally by the AI Analyzer."""
     def __init__(self, model_name: str = "gemini-1.5-flash-latest"):
         super().__init__(model_name)
         api_key = os.getenv("GEMINI_API_KEY")
@@ -54,16 +135,12 @@ class UserProvidedGeminiConnector(ModelConnector):
         if not api_key:
             raise ValueError("Gemini API key was not provided.")
         genai.configure(api_key=api_key)
-        # Ensure we use a model that supports vision
-        if "vision" not in model_name and "flash" not in model_name:
-             print(f"Warning: Model '{model_name}' may not support vision. Using it anyway.")
         self.client = genai.GenerativeModel(self.model_name)
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
             content = [prompt.prompt_text]
             if prompt.image_data:
-                # If image data is present, open it with PIL and add to the content
                 img = Image.open(BytesIO(prompt.image_data))
                 content.append(img)
             
@@ -75,7 +152,7 @@ class UserProvidedGeminiConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class OpenRouterConnector(ModelConnector):
-    """Flexible connector for models on OpenRouter. (Currently text-only)."""
+    """Flexible connector for models on OpenRouter."""
     def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
         if not api_key:
@@ -84,7 +161,7 @@ class OpenRouterConnector(ModelConnector):
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
-            # Note: This connector would need significant changes for multi-modal
+            # Note: OpenRouter multi-modal support would require a similar structure to OpenAI's
             chat_completion = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt.prompt_text}])
             output_text = chat_completion.choices[0].message.content or ""
             metadata = {"finish_reason": chat_completion.choices[0].finish_reason, "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0}
@@ -93,7 +170,7 @@ class OpenRouterConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class CustomEndpointConnector(ModelConnector):
-    """Connector for any custom REST API endpoint. (Currently text-only)."""
+    """Connector for any custom REST API endpoint."""
     def __init__(self, endpoint_url: str, headers: dict):
         super().__init__(model_name=endpoint_url)
         self.endpoint_url = endpoint_url

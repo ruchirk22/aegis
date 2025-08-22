@@ -27,6 +27,7 @@ dependencies = [
     "pandas",
     "google-generativeai",
     "openai",
+    "anthropic",
     "python-dotenv",
     "requests",
     "fpdf2",
