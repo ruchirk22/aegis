@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from typing import List, Optional
 from importlib import resources
 
@@ -28,20 +29,35 @@ class PromptLibrary:
         loaded_prompts = []
         # Use importlib.resources to safely access package data
         try:
-            prompt_files_path = resources.files('aegis.prompts')
-            for file_path in prompt_files_path.iterdir():
-                # Check if the path is a file and ends with .json
-                if file_path.is_file() and file_path.name.endswith('.json'):
-                    try:
+            # FIX: The method for iterating over package resources changed in Python 3.10.
+            # This code block handles both old and new versions.
+            if sys.version_info < (3, 10):
+                # For Python 3.9
+                with resources.path('aegis', 'prompts') as p:
+                    prompt_files = [f for f in os.listdir(p) if f.endswith('.json')]
+                    for file_name in prompt_files:
+                        file_path = os.path.join(p, file_name)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            prompts_data = json.load(f)
+                            for prompt_dict in prompts_data:
+                                prompt = AdversarialPrompt(**prompt_dict)
+                                loaded_prompts.append(prompt)
+            else:
+                # For Python 3.10 and newer
+                prompt_files_path = resources.files('aegis.prompts')
+                for file_path in prompt_files_path.iterdir():
+                    if file_path.is_file() and file_path.name.endswith('.json'):
                         with file_path.open('r', encoding='utf-8') as f:
                             prompts_data = json.load(f)
                             for prompt_dict in prompts_data:
                                 prompt = AdversarialPrompt(**prompt_dict)
                                 loaded_prompts.append(prompt)
-                    except Exception as e:
-                        print(f"An unexpected error occurred while loading {file_path.name}: {e}")
-        except ModuleNotFoundError:
+
+        except (ModuleNotFoundError, FileNotFoundError):
             print("Warning: 'aegis.prompts' package not found. No prompts will be loaded.")
+        except Exception as e:
+            print(f"An unexpected error occurred while loading prompts: {e}")
+
 
         self.prompts = loaded_prompts
         self._loaded = True
