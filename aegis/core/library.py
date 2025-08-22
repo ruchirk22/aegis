@@ -27,18 +27,22 @@ class PromptLibrary:
 
         loaded_prompts = []
         # Use importlib.resources to safely access package data
-        prompt_files = resources.files('aegis.prompts').glob('*.json')
+        try:
+            prompt_files_path = resources.files('aegis.prompts')
+            for file_path in prompt_files_path.iterdir():
+                # Check if the path is a file and ends with .json
+                if file_path.is_file() and file_path.name.endswith('.json'):
+                    try:
+                        with file_path.open('r', encoding='utf-8') as f:
+                            prompts_data = json.load(f)
+                            for prompt_dict in prompts_data:
+                                prompt = AdversarialPrompt(**prompt_dict)
+                                loaded_prompts.append(prompt)
+                    except Exception as e:
+                        print(f"An unexpected error occurred while loading {file_path.name}: {e}")
+        except ModuleNotFoundError:
+            print("Warning: 'aegis.prompts' package not found. No prompts will be loaded.")
 
-        for file_path in prompt_files:
-            try:
-                with file_path.open('r', encoding='utf-8') as f:
-                    prompts_data = json.load(f)
-                    for prompt_dict in prompts_data:
-                        prompt = AdversarialPrompt(**prompt_dict)
-                        loaded_prompts.append(prompt)
-            except Exception as e:
-                print(f"An unexpected error occurred while loading {file_path.name}: {e}")
-        
         self.prompts = loaded_prompts
         self._loaded = True
         print(f"Successfully loaded {len(self.prompts)} prompts.")
