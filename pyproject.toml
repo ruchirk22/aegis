@@ -1,0 +1,43 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegis-redteam-framework"
+version = "1.0.0"
+authors = [
+  { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
+]
+description = "An Open-Source LLM Red Teaming & Evaluation Framework"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+]
+dependencies = [
+    "typer[all]",
+    "rich",
+    "plotly",
+    "pandas",
+    "google-generativeai",
+    "openai",
+    "python-dotenv",
+    "requests",
+    "fpdf2",
+    "streamlit",
+    "kaleido",
+    "bandit"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ruchirk22/aegis"
+"Bug Tracker" = "https://github.com/ruchirk22/aegis/issues"
+
+[project.scripts]
+aegis = "aegis.cli:app"

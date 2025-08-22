@@ -10,3 +10,6 @@ python-dotenv
 fpdf2
 plotly
 kaleido
+build
+twine
+bandit

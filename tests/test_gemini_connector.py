@@ -1,41 +1,35 @@
-# aegis/tests/test_gemini_connector.py
+# tests/test_gemini_connector.py
 
-import sys
-import os
 import unittest
 from unittest.mock import patch, MagicMock
+import os
 
-# Add project root to Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, project_root)
-
-# Set a dummy API key for testing purposes
+# Set a dummy API key before importing the connector
 os.environ['GEMINI_API_KEY'] = 'test_key_for_unit_testing'
 
-from aegis.core.connectors import GeminiConnector
+from aegis.core.connectors import InternalGeminiConnector
 from aegis.core.models import AdversarialPrompt, ModelResponse
 
-class TestGeminiConnector(unittest.TestCase):
+class TestInternalGeminiConnector(unittest.TestCase):
     """
-    Unit tests for the GeminiConnector class.
+    Unit tests for the InternalGeminiConnector class.
     
     Uses mocking to simulate the Google Generative AI API.
     """
 
     @patch('aegis.core.connectors.genai.GenerativeModel')
-    def test_01_send_prompt_successful(self, MockGenerativeModel):
+    def test_send_prompt_successful(self, MockGenerativeModel):
         """
         Verify that send_prompt correctly processes a successful Gemini API response.
         """
-        print("\n--- Running Test 01: Successful Gemini API Call ---")
+        print("\n--- Running Test: Successful Gemini API Call ---")
 
         # --- Mock Setup ---
-        # Create a mock object that simulates the structure of the Gemini API response.
         mock_response = MagicMock()
         mock_response.text = "This is a successful Gemini test response. "
+        # Simulate the nested structure for prompt_feedback
         mock_response.prompt_feedback.block_reason.name = "SAFETY"
 
-        # Configure the mock Gemini client to return our mock response object
         mock_instance = MockGenerativeModel.return_value
         mock_instance.generate_content.return_value = mock_response
 
@@ -49,8 +43,7 @@ class TestGeminiConnector(unittest.TestCase):
             expected_behavior="RESPOND"
         )
         
-        # Initialize the connector which will use the mocked client
-        connector = GeminiConnector()
+        connector = InternalGeminiConnector()
         response = connector.send_prompt(test_prompt)
 
         # --- Assertions ---
@@ -62,9 +55,5 @@ class TestGeminiConnector(unittest.TestCase):
         
         print("✅ Success: Correctly parsed the mock Gemini API response.")
 
-
 if __name__ == "__main__":
-    print("=========================================")
-    print("   Running Aegis Gemini Connector Tests   ")
-    print("=========================================")
     unittest.main(verbosity=2)

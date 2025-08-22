@@ -6,6 +6,8 @@ import os
 import pandas as pd
 import json
 from io import BytesIO
+from datetime import datetime
+import uuid
 
 # --- Path Correction ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -18,6 +20,7 @@ from aegis.core.connectors import OpenRouterConnector, CustomEndpointConnector, 
 from aegis.core.models import AdversarialPrompt
 from aegis.core.library import PromptLibrary
 from aegis.core.reporting import generate_pdf_report
+from aegis.core.database.manager import DatabaseManager
 import plotly.express as px
 
 # --- Page Configuration ---
@@ -29,11 +32,12 @@ def load_resources():
     library = PromptLibrary()
     library.load_prompts()
     analyzer = LLMAnalyzer()
-    return library, analyzer
+    db_manager = DatabaseManager()
+    return library, analyzer, db_manager
 
-st.session_state.library, st.session_state.analyzer = load_resources()
+st.session_state.library, st.session_state.analyzer, st.session_state.db_manager = load_resources()
 
-# Initialize all session state variables
+# --- Session State Initializations ---
 if 'active_tab' not in st.session_state: st.session_state.active_tab = "single"
 if 'single_result' not in st.session_state: st.session_state.single_result = None
 if 'batch_results_df' not in st.session_state: st.session_state.batch_results_df = pd.DataFrame()
@@ -45,11 +49,28 @@ if 'explorer_expanded' not in st.session_state: st.session_state.explorer_expand
 if 'is_processing' not in st.session_state: st.session_state.is_processing = False
 
 # --- Helper Functions ---
-def convert_results_to_df(results_list):
+def convert_result_to_flat_dict(result_data, session_id):
+    """Converts the nested result object to a flat dictionary for saving."""
+    return {
+        "session_id": session_id,
+        "prompt_id": result_data["prompt"].id,
+        "category": result_data["prompt"].category,
+        "prompt_text": result_data["prompt"].prompt_text,
+        "model_name": result_data["response"].model_name,
+        "model_output": result_data["response"].output_text,
+        "classification": result_data["analysis"].classification.name,
+        "vulnerability_score": result_data["analysis"].vulnerability_score,
+        "explanation": result_data["analysis"].explanation
+    }
+
+def convert_results_to_df(results_list, session_id):
+    """Converts a list of result objects to a pandas DataFrame."""
     if not results_list: return pd.DataFrame()
-    return pd.DataFrame([{"prompt_id": res["prompt"].id, "category": res["prompt"].category, "prompt_text": res["prompt"].prompt_text, "model_name": res["response"].model_name, "model_output": res["response"].output_text, "classification": res["analysis"].classification.name, "vulnerability_score": res["analysis"].vulnerability_score, "explanation": res["analysis"].explanation} for res in results_list])
+    flat_list = [convert_result_to_flat_dict(res, session_id) for res in results_list]
+    return pd.DataFrame(flat_list)
 
 def display_analysis_results(result_data):
+    """Renders the analysis results in a standardized format."""
     analysis, response = result_data["analysis"], result_data["response"]
     color = "blue"
     if analysis.classification.name == "NON_COMPLIANT": color = "red"
@@ -62,32 +83,30 @@ def display_analysis_results(result_data):
     st.error(f"**Model Output:**\n\n{response.output_text}")
     st.info(f"**Analysis Explanation:**\n\n{analysis.explanation}")
 
-# --- UI Layout ---
+# --- UI Layout (Sidebar) ---
 st.sidebar.title("🛡️ Aegis Framework")
 st.title("Red Team Sandbox")
-
-# --- Sidebar Configuration ---
 with st.sidebar:
     st.header("Configuration")
-    provider_option = st.selectbox("Choose a Provider", ("OpenRouter", "Gemini", "Custom Endpoint"))
+    provider_option = st.selectbox("Choose a Provider", ("Gemini", "OpenRouter", "Custom Endpoint"))
     connector = None
-
-    if provider_option == "OpenRouter":
+    if provider_option == "Gemini":
+        st.info("Select a vision-compatible model like 'gemini-1.5-flash-latest' for multi-modal tests.")
+        st.text_input("Enter your Google Gemini API Key", type="password", key="user_api_key_gemini")
+        selected_model = st.text_input("Enter a Gemini Model Name", "gemini-1.5-flash-latest")
+        if st.session_state.user_api_key_gemini and selected_model:
+            connector = UserProvidedGeminiConnector(model_name=selected_model, api_key=st.session_state.user_api_key_gemini)
+    elif provider_option == "OpenRouter":
+        st.warning("Multi-modal support for OpenRouter is not yet implemented.")
         st.text_input("Enter your OpenRouter API Key", type="password", key="user_api_key_openrouter")
-        models = ["openai/gpt-oss-20b:free", "google/gemma-3-27b-it:free", "Enter a custom model name..."]
+        models = ["openai/gpt-4o-mini", "google/gemma-2-9b-it:free", "anthropic/claude-3.5-sonnet", "Enter a custom model name..."]
         selected_model = st.selectbox("Select an OpenRouter Model", options=models)
         if selected_model == "Enter a custom model name...":
             selected_model = st.text_input("Enter Custom Model Name", "anthropic/claude-3-opus")
         if st.session_state.user_api_key_openrouter and selected_model:
             connector = OpenRouterConnector(model_name=selected_model, api_key=st.session_state.user_api_key_openrouter)
-
-    elif provider_option == "Gemini":
-        st.text_input("Enter your Google Gemini API Key", type="password", key="user_api_key_gemini")
-        selected_model = st.text_input("Enter a Gemini Model Name", "gemini-1.5-flash-latest")
-        if st.session_state.user_api_key_gemini and selected_model:
-            connector = UserProvidedGeminiConnector(model_name=selected_model, api_key=st.session_state.user_api_key_gemini)
-
     elif provider_option == "Custom Endpoint":
+        st.warning("Multi-modal support for Custom Endpoints is not yet implemented.")
         endpoint_url = st.text_input("Enter Endpoint URL", "http://localhost:8000/generate")
         headers_str = st.text_area("Enter Headers (JSON)", '{"Authorization": "Bearer YOUR_KEY"}')
         try:
@@ -117,11 +136,24 @@ with tab1:
                     st.divider()
 
     st.subheader("Enter Your Adversarial Prompt")
-    st.text_area("Prompt", height=150, label_visibility="collapsed", key="prompt_text", disabled=st.session_state.is_processing)
+    
+    uploaded_image = st.file_uploader(
+        "Upload an Image (Optional)", 
+        type=["png", "jpg", "jpeg", "webp"],
+        disabled=st.session_state.is_processing
+    )
+    if uploaded_image:
+        st.image(uploaded_image, caption="Image to be analyzed", width=200)
+    
+    st.text_area("Text Prompt", height=150, label_visibility="collapsed", key="prompt_text", disabled=st.session_state.is_processing)
     
     if st.button("Evaluate Single Prompt", type="primary", use_container_width=True, disabled=st.session_state.is_processing):
-        if not st.session_state.prompt_text: st.warning("Please enter a prompt.")
-        elif connector is None: st.warning("Provider configuration is incomplete or invalid.")
+        if not st.session_state.prompt_text: 
+            st.warning("Please enter a text prompt.")
+        elif connector is None: 
+            st.warning("Provider configuration is incomplete or invalid.")
+        elif provider_option != "Gemini" and uploaded_image:
+            st.error("Image uploads are currently only supported for the Gemini provider.")
         else:
             st.session_state.is_processing = True
             st.session_state.single_result = None
@@ -132,10 +164,29 @@ with tab1:
     if st.session_state.is_processing and st.session_state.active_tab == "single":
         with results_placeholder.container():
             with st.spinner("Evaluating..."):
-                temp_prompt = AdversarialPrompt(id="sandbox_live_test", prompt_text=st.session_state.prompt_text, category="Live_Test", subcategory="Sandbox", severity="UNKNOWN", expected_behavior="REJECT")
+                session_id = f"single_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
+                
+                image_bytes = uploaded_image.getvalue() if uploaded_image else None
+                
+                temp_prompt = AdversarialPrompt(
+                    id="sandbox_live_test", 
+                    prompt_text=st.session_state.prompt_text, 
+                    category="Live_Test", 
+                    subcategory="MultiModal" if image_bytes else "Text", 
+                    severity="UNKNOWN", 
+                    expected_behavior="REJECT",
+                    image_data=image_bytes
+                )
+                
                 response = connector.send_prompt(temp_prompt)
                 analysis = st.session_state.analyzer.analyze(response, temp_prompt)
-                st.session_state.single_result = {"prompt": temp_prompt, "response": response, "analysis": analysis}
+                result_data = {"prompt": temp_prompt, "response": response, "analysis": analysis}
+                
+                flat_result = convert_result_to_flat_dict(result_data, session_id)
+                st.session_state.db_manager.insert_result(flat_result)
+                st.toast("✅ Result saved to database!")
+                
+                st.session_state.single_result = result_data
                 st.session_state.is_processing = False
                 st.rerun()
 
@@ -144,24 +195,9 @@ with tab1:
             st.divider()
             st.subheader("Analysis Results")
             display_analysis_results(st.session_state.single_result)
-            st.divider()
-            st.subheader("Export Single Result")
-            export_df = convert_results_to_df([st.session_state.single_result])
-            col1, col2, col3 = st.columns(3)
-            with col1: st.download_button("📥 Download as JSON", export_df.to_json(orient='records', indent=2), "aegis_single_report.json", "application/json", use_container_width=True)
-            with col2: st.download_button("📄 Download as CSV", export_df.to_csv(index=False).encode('utf-8'), "aegis_single_report.csv", "text/csv", use_container_width=True)
-            with col3:
-                pdf_buffer = BytesIO()
-                chart_buffer = BytesIO()
-                counts = export_df['classification'].value_counts()
-                fig = px.bar(counts, x=counts.index, y=counts.values)
-                fig.write_image(chart_buffer, format="png")
-                chart_buffer.seek(0)
-                generate_pdf_report([st.session_state.single_result], pdf_buffer, chart_buffer)
-                pdf_buffer.seek(0)
-                st.download_button("📈 Download as PDF", pdf_buffer, "aegis_single_report.pdf", "application/pdf", use_container_width=True)
 
 with tab2:
+    st.info("Multi-modal evaluation is not yet supported in Batch mode.")
     st.subheader("Run Bulk Attacks")
     batch_source = st.radio("Select Prompt Source", ("From Library", "Custom Prompts"), horizontal=True, disabled=st.session_state.is_processing)
     prompts_to_run = []
@@ -190,15 +226,24 @@ with tab2:
     if st.session_state.is_processing and st.session_state.active_tab == "batch":
         with batch_results_placeholder.container():
             with st.spinner("Running batch evaluation..."):
+                session_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:4]}"
+                
                 st.session_state.raw_batch_results = []
                 progress_bar = st.progress(0, text="Starting...")
                 total_prompts = len(prompts_to_run)
                 for i, prompt in enumerate(prompts_to_run):
                     response = connector.send_prompt(prompt)
                     analysis = st.session_state.analyzer.analyze(response, prompt)
-                    st.session_state.raw_batch_results.append({"prompt": prompt, "response": response, "analysis": analysis})
-                    progress_bar.progress((i + 1) / total_prompts, text=f"Evaluated {prompt.id}...")
-                st.session_state.batch_results_df = convert_results_to_df(st.session_state.raw_batch_results)
+                    result_data = {"prompt": prompt, "response": response, "analysis": analysis}
+                    st.session_state.raw_batch_results.append(result_data)
+                    
+                    flat_result = convert_result_to_flat_dict(result_data, session_id)
+                    st.session_state.db_manager.insert_result(flat_result)
+                    
+                    progress_bar.progress((i + 1) / total_prompts, text=f"Evaluated & Saved {prompt.id}...")
+                
+                st.toast(f"✅ Batch evaluation complete! {total_prompts} results saved to database.")
+                st.session_state.batch_results_df = convert_results_to_df(st.session_state.raw_batch_results, session_id)
                 st.session_state.is_processing = False
                 st.rerun()
 
@@ -207,17 +252,3 @@ with tab2:
             st.divider()
             st.subheader("Batch Results")
             st.dataframe(st.session_state.batch_results_df)
-            st.subheader("Export Batch Report")
-            col1, col2, col3 = st.columns(3)
-            with col1: st.download_button("📥 Download as JSON", st.session_state.batch_results_df.to_json(orient='records', indent=2), "aegis_batch_report.json", "application/json", use_container_width=True)
-            with col2: st.download_button("📄 Download as CSV", st.session_state.batch_results_df.to_csv(index=False).encode('utf-8'), "aegis_batch_report.csv", "text/csv", use_container_width=True)
-            with col3:
-                pdf_buffer = BytesIO()
-                chart_buffer = BytesIO()
-                counts = st.session_state.batch_results_df['classification'].value_counts()
-                fig = px.bar(counts, x=counts.index, y=counts.values, color=counts.index, color_discrete_map={'NON_COMPLIANT': 'red', 'COMPLIANT': 'green', 'PARTIAL_COMPLIANCE': 'orange', 'AMBIGUOUS': 'grey', 'ERROR': 'black'})
-                fig.write_image(chart_buffer, format="png")
-                chart_buffer.seek(0)
-                generate_pdf_report(st.session_state.raw_batch_results, pdf_buffer, chart_buffer)
-                pdf_buffer.seek(0)
-                st.download_button("📈 Download as PDF", pdf_buffer, "aegis_batch_report.pdf", "application/pdf", use_container_width=True)

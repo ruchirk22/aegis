@@ -7,10 +7,11 @@ from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from openai import OpenAI
 import google.generativeai as genai
+from PIL import Image
+from io import BytesIO
 
 from .models import ModelResponse, AdversarialPrompt
 
-# Load environment variables for the CLI and the internal evaluator model
 load_dotenv()
 
 class ModelConnector(ABC):
@@ -27,11 +28,10 @@ class ModelConnector(ABC):
 class InternalGeminiConnector(ModelConnector):
     """
     Connector for Google Gemini models, used internally by the AI Analyzer.
-    This version relies on environment variables for stability during deployment.
+    (This remains text-only for now as the internal analyzer is text-based).
     """
     def __init__(self, model_name: str = "gemini-1.5-flash-latest"):
         super().__init__(model_name)
-        # This key MUST be set in the deployment environment (e.g., Streamlit Secrets)
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY for the evaluator model is not set in the environment.")
@@ -48,18 +48,26 @@ class InternalGeminiConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class UserProvidedGeminiConnector(ModelConnector):
-    """Connector for Google Gemini models using a user-provided API key."""
+    """Connector for Google Gemini models using a user-provided API key, with multi-modal support."""
     def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
         if not api_key:
             raise ValueError("Gemini API key was not provided.")
         genai.configure(api_key=api_key)
+        # Ensure we use a model that supports vision
+        if "vision" not in model_name and "flash" not in model_name:
+             print(f"Warning: Model '{model_name}' may not support vision. Using it anyway.")
         self.client = genai.GenerativeModel(self.model_name)
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
-        # This logic is identical to the internal one, just uses a different client instance
         try:
-            response = self.client.generate_content(prompt.prompt_text)
+            content = [prompt.prompt_text]
+            if prompt.image_data:
+                # If image data is present, open it with PIL and add to the content
+                img = Image.open(BytesIO(prompt.image_data))
+                content.append(img)
+            
+            response = self.client.generate_content(content)
             output_text = response.text or ""
             metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
             return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=self.model_name, metadata=metadata)
@@ -67,7 +75,7 @@ class UserProvidedGeminiConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class OpenRouterConnector(ModelConnector):
-    """Flexible connector for models on OpenRouter, requires a user-provided API key."""
+    """Flexible connector for models on OpenRouter. (Currently text-only)."""
     def __init__(self, model_name: str, api_key: str):
         super().__init__(model_name)
         if not api_key:
@@ -76,6 +84,7 @@ class OpenRouterConnector(ModelConnector):
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
+            # Note: This connector would need significant changes for multi-modal
             chat_completion = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt.prompt_text}])
             output_text = chat_completion.choices[0].message.content or ""
             metadata = {"finish_reason": chat_completion.choices[0].finish_reason, "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0}
@@ -84,7 +93,7 @@ class OpenRouterConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 class CustomEndpointConnector(ModelConnector):
-    """Connector for any custom REST API endpoint."""
+    """Connector for any custom REST API endpoint. (Currently text-only)."""
     def __init__(self, endpoint_url: str, headers: dict):
         super().__init__(model_name=endpoint_url)
         self.endpoint_url = endpoint_url

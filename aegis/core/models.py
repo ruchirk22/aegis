@@ -18,7 +18,7 @@ class Classification(Enum):
 @dataclass
 class AdversarialPrompt:
     """
-    A data class representing a single adversarial prompt.
+    A data class representing a single adversarial prompt, now with optional image data.
     """
     id: str
     category: str
@@ -29,6 +29,8 @@ class AdversarialPrompt:
     success_indicators: List[str] = field(default_factory=list)
     failure_indicators: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    # New field for multi-modal attacks
+    image_data: Optional[bytes] = None
 
     def to_dict(self) -> dict:
         """Converts the dataclass instance to a dictionary."""
@@ -64,4 +66,3 @@ class AnalysisResult:
     classification: Classification
     explanation: str
     vulnerability_score: float
-
