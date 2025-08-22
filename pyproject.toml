@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aegis-redteam-framework"
-version = "1.0.0"
+version = "1.0.1"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
@@ -42,3 +42,7 @@ dependencies = [
 
 [project.scripts]
 aegis = "aegis.cli:app"
+
+# Add this section to include the prompt files in the package
+[tool.setuptools.package-data]
+"aegis.prompts" = ["*.json"]
