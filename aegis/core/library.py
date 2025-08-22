@@ -27,21 +27,20 @@ class PromptLibrary:
             return
 
         loaded_prompts = []
-        # Use importlib.resources to safely access package data
         try:
             # FIX: The method for iterating over package resources changed in Python 3.10.
-            # This code block handles both old and new versions.
+            # This code block handles both old and new versions robustly.
             if sys.version_info < (3, 10):
-                # For Python 3.9
-                with resources.path('aegis', 'prompts') as p:
-                    prompt_files = [f for f in os.listdir(p) if f.endswith('.json')]
-                    for file_name in prompt_files:
-                        file_path = os.path.join(p, file_name)
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            prompts_data = json.load(f)
-                            for prompt_dict in prompts_data:
-                                prompt = AdversarialPrompt(**prompt_dict)
-                                loaded_prompts.append(prompt)
+                # For Python 3.9 - this is the corrected logic
+                with resources.path('aegis', 'prompts') as prompts_dir_path:
+                    for filename in os.listdir(prompts_dir_path):
+                        if filename.endswith('.json'):
+                            file_path = os.path.join(prompts_dir_path, filename)
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                prompts_data = json.load(f)
+                                for prompt_dict in prompts_data:
+                                    prompt = AdversarialPrompt(**prompt_dict)
+                                    loaded_prompts.append(prompt)
             else:
                 # For Python 3.10 and newer
                 prompt_files_path = resources.files('aegis.prompts')
