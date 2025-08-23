@@ -10,7 +10,7 @@ You can contribute in several ways:
 * **Suggesting Enhancements:** Have an idea for a new feature or an improvement? Open an issue to start a discussion.
 * **Submitting Pull Requests:** If you want to contribute code, please follow the process below.
 
-## 💻 Setting Up Your Development Environment
+## Setting Up Your Development Environment
 
 1. **Fork** the repository on GitHub.
 2. **Clone** your fork locally:
@@ -41,7 +41,7 @@ To ensure code quality, please run the tests before submitting a pull request.
 pytest
 ```
 
-## 🔀 Pull Request (PR) Process
+## Pull Request (PR) Process
 
 1. Ensure any install or build dependencies are removed before the end of the layer when doing a build.
 2. Update the `README.md` with details of changes to the interface. This includes new environment variables, exposed ports, useful file locations, and container parameters.

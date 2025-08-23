@@ -1,9 +1,7 @@
 # Aegis: An Open-Source LLM Red Teaming & Evaluation Framework
 
 [![PyPI version](https://badge.fury.io/py/aegisred.svg)](https://pypi.org/project/aegisred/)
-[![Python versions](https://img.shields.io/pypi/pyversions/aegisred.svg)](https://pypi.org/project/aegisred/)
 [![License](https://img.shields.io/github/license/ruchirk22/aegis.svg)](LICENSE.txt)
-[![Downloads](https://pepy.tech/badge/aegisred)](https://pepy.tech/project/aegisred)
 
 Aegis is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.  
 
@@ -138,4 +136,4 @@ If you use Aegis in your research or security assessments, please cite as follow
 - Issue Tracker
 - PyPi Package
 
-For questions, discussions, or collaboration, please open an issue or reach out via GitHub.
+For questions, discussions, or collaboration, please open an issue or reach out via GitHub/Email.
