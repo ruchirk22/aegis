@@ -33,7 +33,7 @@ You can contribute in several ways:
    pip install -e .
    ```
 
-## 🧪 Running Tests
+## Running Tests
 
 To ensure code quality, please run the tests before submitting a pull request.
 
