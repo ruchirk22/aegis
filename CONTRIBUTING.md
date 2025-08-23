@@ -2,7 +2,7 @@
 
 We're thrilled you're interested in contributing to Aegis! Every contribution—from a bug report to a new feature—helps make the AI ecosystem safer. This guide will help you get started.
 
-## 🚀 How to Contribute
+## How to Contribute
 
 You can contribute in several ways:
 
@@ -63,4 +63,4 @@ pytest
 
 ---
 
-**Thank you for your contribution!** 🙏
+**Thank you for your contribution!**
