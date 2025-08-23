@@ -12,6 +12,15 @@ import google.generativeai as genai
 from PIL import Image
 from io import BytesIO
 
+# --- New imports for Feature 3 ---
+try:
+    from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+# --- End new imports ---
+
 from .models import ModelResponse, AdversarialPrompt
 
 load_dotenv()
@@ -27,6 +36,59 @@ class ModelConnector(ABC):
         """Sends a prompt to the respective model API."""
         pass
 
+# --- New Connector for Feature 3 ---
+class LocalModelConnector(ModelConnector):
+    """Connector for local models using the transformers library."""
+    def __init__(self, model_name: str):
+        if not TRANSFORMERS_AVAILABLE:
+            raise ImportError("The 'transformers' and 'torch' libraries are required for local model testing. Please install them.")
+        
+        super().__init__(model_name)
+        try:
+            print(f"Loading local model from path: {self.model_name}...")
+            # Check for GPU availability
+            device = 0 if torch.cuda.is_available() else -1
+            self.pipe = pipeline(
+                "text-generation", 
+                model=self.model_name,
+                device=device,
+                torch_dtype=torch.bfloat16 if device == 0 else torch.float32 # Use bfloat16 on GPU for performance
+            )
+            print("✅ Local model loaded successfully.")
+        except Exception as e:
+            raise ValueError(f"Failed to load local model '{self.model_name}'. Error: {e}")
+
+    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+        try:
+            # Note: Multi-modal support for local models is not yet implemented.
+            if prompt.image_data:
+                return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models yet.")
+
+            outputs = self.pipe(
+                prompt.prompt_text,
+                max_new_tokens=512,
+                do_sample=True,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.95
+            )
+            
+            output_text = outputs[0]['generated_text'] if outputs and 'generated_text' in outputs[0] else ""
+            
+            # The pipeline often includes the prompt in the output, so we remove it.
+            if output_text.startswith(prompt.prompt_text):
+                output_text = output_text[len(prompt.prompt_text):].strip()
+
+            return ModelResponse(
+                output_text=output_text,
+                prompt_id=prompt.id,
+                model_name=f"local/{os.path.basename(self.model_name)}"
+            )
+        except Exception as e:
+            return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
+
+
+# --- Existing connectors (OpenAI, Anthropic, Gemini, etc.) remain below ---
 class OpenAIConnector(ModelConnector):
     """Connector for OpenAI models like GPT-4, with multi-modal support."""
     def __init__(self, model_name: str, api_key: str):
@@ -80,7 +142,6 @@ class AnthropicConnector(ModelConnector):
                 img = Image.open(BytesIO(prompt.image_data))
                 media_type = f"image/{img.format.lower()}"
                 base64_image = base64.b64encode(prompt.image_data).decode('utf-8')
-                # Anthropic recommends the image block comes before the text block
                 content.insert(0, {
                     "type": "image",
                     "source": {
@@ -161,7 +222,6 @@ class OpenRouterConnector(ModelConnector):
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
-            # Note: OpenRouter multi-modal support would require a similar structure to OpenAI's
             chat_completion = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt.prompt_text}])
             output_text = chat_completion.choices[0].message.content or ""
             metadata = {"finish_reason": chat_completion.choices[0].finish_reason, "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0}

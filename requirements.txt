@@ -13,3 +13,11 @@ kaleido
 build
 twine
 bandit
+nlpaug
+textattack
+transformers
+torch
+langchain
+langchain-community
+langchain-openai
+langchainhub

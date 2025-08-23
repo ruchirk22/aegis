@@ -24,7 +24,7 @@ from aegis.core.connectors import (
     AnthropicConnector
 )
 from aegis.core.models import AdversarialPrompt
-from aegis.core.library import PromptLibrary
+from aegis.core.prompt_manager import PromptManager
 from aegis.core.reporting import generate_pdf_report
 from aegis.core.database.manager import DatabaseManager
 import plotly.express as px
@@ -35,7 +35,7 @@ st.set_page_config(page_title="Aegis Framework", page_icon="🛡️", layout="wi
 # --- State Management & Caching ---
 @st.cache_resource
 def load_resources():
-    library = PromptLibrary()
+    library = PromptManager()
     library.load_prompts()
     analyzer = LLMAnalyzer()
     db_manager = DatabaseManager()
