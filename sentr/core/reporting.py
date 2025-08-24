@@ -1,4 +1,4 @@
-# aegis/core/reporting.py
+# sentr/core/reporting.py
 
 from fpdf import FPDF, HTMLMixin
 import pandas as pd
@@ -57,7 +57,7 @@ class PDF(FPDF, HTMLMixin):
 
     def header(self):
         self.set_safe_font('Arial', 'B', 12)
-        self.cell(0, 10, self.safe_text('Aegis LLM Security Report'), 0, 1, 'C')
+        self.cell(0, 10, self.safe_text('sentr LLM Security Report'), 0, 1, 'C')
         self.ln(5)
 
     def footer(self):

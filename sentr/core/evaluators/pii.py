@@ -1,4 +1,4 @@
-# aegis/core/evaluators/pii.py
+# sentr/core/evaluators/pii.py
 
 import re
 from .base import Evaluator

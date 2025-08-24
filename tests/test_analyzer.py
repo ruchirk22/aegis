@@ -2,9 +2,9 @@
 
 import unittest
 from unittest.mock import patch, MagicMock
-from aegis.core.analyzer import LLMAnalyzer
-from aegis.core.models import ModelResponse, AdversarialPrompt, Classification, AnalysisResult
-from aegis.core.evaluators.base import Evaluator
+from sentr.core.analyzer import LLMAnalyzer
+from sentr.core.models import ModelResponse, AdversarialPrompt, Classification, AnalysisResult
+from sentr.core.evaluators.base import Evaluator
 
 # Create a mock evaluator for testing purposes
 class MockPassEvaluator(Evaluator):
@@ -31,8 +31,8 @@ class TestLLMAnalyzer(unittest.TestCase):
     Unit tests for the new plugin-based LLMAnalyzer.
     """
 
-    @patch('aegis.core.analyzer.PluginManager')
-    @patch('aegis.core.analyzer.LLMAnalyzer._run_llm_evaluation')
+    @patch('sentr.core.analyzer.PluginManager')
+    @patch('sentr.core.analyzer.LLMAnalyzer._run_llm_evaluation')
     def test_analyzer_stops_on_programmatic_failure(self, mock_llm_eval, mock_plugin_manager):
         """
         Tests that if a programmatic evaluator fails, the LLM evaluation is NOT called.
@@ -55,8 +55,8 @@ class TestLLMAnalyzer(unittest.TestCase):
         mock_llm_eval.assert_not_called()
         print("✅ Success: LLM evaluation was correctly skipped.")
 
-    @patch('aegis.core.analyzer.PluginManager')
-    @patch('aegis.core.analyzer.LLMAnalyzer._run_llm_evaluation')
+    @patch('sentr.core.analyzer.PluginManager')
+    @patch('sentr.core.analyzer.LLMAnalyzer._run_llm_evaluation')
     def test_analyzer_proceeds_on_programmatic_success(self, mock_llm_eval, mock_plugin_manager):
         """
         Tests that if programmatic evaluators pass, the LLM evaluation IS called.

@@ -1,4 +1,4 @@
-# aegis/web_interface/pages/1_📊_Security_Dashboard.py
+# sentr/web_interface/pages/1_📊_Security_Dashboard.py
 
 import streamlit as st
 import pandas as pd
@@ -12,10 +12,10 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 # --- End Path Correction ---
 
-from aegis.core.database.manager import DatabaseManager
+from sentr.core.database.manager import DatabaseManager
 
 # --- Page Configuration ---
-st.set_page_config(page_title="Aegis Security Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="sentr Security Dashboard", page_icon="📊", layout="wide")
 
 st.title("📊 Security Dashboard")
 st.markdown("Visualize historical evaluation results from the central database.")

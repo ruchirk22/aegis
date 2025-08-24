@@ -1,12 +1,12 @@
-# aegis/core/evaluators/base.py
+# sentr/core/evaluators/base.py
 
 # FIX: Import ABC to mark this as an abstract class
 from abc import ABC, abstractmethod
 from ..models import ModelResponse, AnalysisResult
-from ..plugins import AegisPlugin
+from ..plugins import sentrPlugin
 
 # FIX: Inherit from ABC
-class Evaluator(AegisPlugin, ABC):
+class Evaluator(sentrPlugin, ABC):
     """
     Abstract Base Class for all evaluator modules.
     

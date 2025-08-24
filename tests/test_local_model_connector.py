@@ -1,4 +1,4 @@
-# tests/test_local_model_connector.py
+# SENTR-FRAMEWORK/tests/test_local_model_connector.py
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -8,8 +8,8 @@ import os
 os.environ['GEMINI_API_KEY'] = 'test_key_for_unit_testing'
 
 # We need to import the class we're testing
-from aegis.core.connectors import LocalModelConnector
-from aegis.core.models import AdversarialPrompt, ModelResponse
+from sentr.core.connectors import LocalModelConnector
+from sentr.core.models import AdversarialPrompt, ModelResponse
 
 # We don't need to mock the entire library, just the 'pipeline' function
 # where it's used inside the connectors module.
@@ -22,7 +22,7 @@ class TestLocalModelConnector(unittest.TestCase):
     """
 
     # Patch the pipeline function directly in the connectors module
-    @patch('aegis.core.connectors.pipeline')
+    @patch('sentr.core.connectors.pipeline')
     def test_send_prompt_successful(self, mock_pipeline_func):
         """
         Verify that send_prompt correctly processes a successful local model response.

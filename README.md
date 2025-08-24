@@ -1,9 +1,9 @@
-# Aegis: An Open-Source LLM Red Teaming & Evaluation Framework
+# Sentr: Secure Evaluation of Neural Testing & Red-teaming
 
-[![PyPI version](https://badge.fury.io/py/aegisred.svg)](https://pypi.org/project/aegisred/)
-[![License](https://img.shields.io/github/license/ruchirk22/aegis.svg)](LICENSE.txt)
+[![PyPI version](https://badge.fury.io/py/sentrred.svg)](https://pypi.org/project/sentr/)
+[![License](https://img.shields.io/github/license/ruchirk22/sentr.svg)](LICENSE.txt)
 
-Aegis is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.  
+Sentr is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
 
 ---
 
@@ -39,14 +39,14 @@ Aegis is an open-source Python framework for systematically evaluating the **sec
 Install directly from PyPI:
 
 ```bash
-pip install aegisred
+pip install sentr
 ```
 
 For Development setup (cloning and local installation):
 
 ```bash
-git clone https://github.com/ruchirk22/aegis.git
-cd aegis
+git clone https://github.com/ruchirk22/sentr.git
+cd sentr
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -67,13 +67,13 @@ GEMINI_API_KEY=your_gemini_api_key
 Single Prompt Evaluation:
 
 ```bash
-aegisred evaluate --model "openrouter/google/gemma-2-9b-it:free" --prompt-id "JBR_001"
+sentrred evaluate --model "openrouter/google/gemma-2-9b-it:free" --prompt-id "JBR_001"
 ```
 
 Batch Evaluation:
 
 ```bash
-aegisred batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1.5-flash-latest" --output-json results.json
+sentrred batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1.5-flash-latest" --output-json results.json
 ```
 
 ### Web Interface
@@ -81,13 +81,13 @@ aegisred batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1
 Start the streamlit-based UI:
 
 ```bash
-streamlit run aegis/web_interface/Aegis.py
+streamlit run sentr/web_interface/Sentr.py
 ```
 
 ## Project Structure
 
 ```bash
-aegis/               # Core framework
+sentr/               # Core framework
 tests/               # Unit tests
 .github/workflows/   # CI/CD configurations
 pyproject.toml       # Build configuration
@@ -107,19 +107,19 @@ Please see CONTRIBUTING.md for setup instructions, coding standards, and best pr
 
 ## License
 
-Aegis is licensed under the Apache 2.0 License.
+sentr is licensed under the Apache 2.0 License.
 
 ## Citation
 
-If you use Aegis in your research or security assessments, please cite as follows:
+If you use sentr in your research or security assessments, please cite as follows:
 
 ```bibtex
-@software{aegisred,
+@software{sentr,
   author       = {Ruchir Kulkarni},
-  title        = {Aegis: LLM Red Teaming & Evaluation Framework},
+  title        = {sentr: Secure Evaluation of Neural Testing & Red-teaming},
   year         = {2025},
   publisher    = {PyPI},
-  url          = {https://pypi.org/project/aegisred/}
+  url          = {https://pypi.org/project/sentr/}
 }
 ```
 

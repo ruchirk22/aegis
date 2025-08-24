@@ -5,8 +5,8 @@ import os
 import json
 from unittest.mock import patch, mock_open
 
-from aegis.core.prompt_manager import PromptManager
-from aegis.core.models import AdversarialPrompt
+from sentr.core.prompt_manager import PromptManager
+from sentr.core.models import AdversarialPrompt
 
 # A sample list of prompts to be used for mocking the JSON file
 SAMPLE_PROMPTS_DATA = [

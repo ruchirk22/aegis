@@ -1,4 +1,4 @@
-# aegis/core/prompt_generator.py
+# sentr/core/prompt_generator.py
 
 import nlpaug.augmenter.word as naw
 import random

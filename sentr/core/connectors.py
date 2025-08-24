@@ -1,4 +1,4 @@
-# aegis/core/connectors.py
+# SENTR-FRAMEWORK/sentr/core/connectors.py
 
 import os
 import json
@@ -14,7 +14,7 @@ from io import BytesIO
 
 # --- New imports for Feature 3 ---
 try:
-    from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+    from transformers import pipeline
     import torch
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
@@ -41,13 +41,15 @@ class LocalModelConnector(ModelConnector):
     """Connector for local models using the transformers library."""
     def __init__(self, model_name: str):
         if not TRANSFORMERS_AVAILABLE:
-            raise ImportError("The 'transformers' and 'torch' libraries are required for local model testing. Please install them.")
+            raise ImportError("The 'transformers' and 'torch' libraries are required for local model testing. Please install them via 'pip install transformers torch'.")
         
         super().__init__(model_name)
         try:
             print(f"Loading local model from path: {self.model_name}...")
-            # Check for GPU availability
+            # Check for GPU availability and set device accordingly
             device = 0 if torch.cuda.is_available() else -1
+            print(f"Using device: {'GPU' if device == 0 else 'CPU'}")
+            
             self.pipe = pipeline(
                 "text-generation", 
                 model=self.model_name,
@@ -56,13 +58,13 @@ class LocalModelConnector(ModelConnector):
             )
             print("✅ Local model loaded successfully.")
         except Exception as e:
-            raise ValueError(f"Failed to load local model '{self.model_name}'. Error: {e}")
+            raise ValueError(f"Failed to load local model '{self.model_name}'. Ensure the path is correct and required libraries are installed. Error: {e}")
 
     def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
         try:
-            # Note: Multi-modal support for local models is not yet implemented.
+            # Multi-modal support for local models is not yet implemented.
             if prompt.image_data:
-                return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models yet.")
+                return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models in this version.")
 
             outputs = self.pipe(
                 prompt.prompt_text,

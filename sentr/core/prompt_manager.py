@@ -1,4 +1,4 @@
-# aegis/core/prompt_manager.py
+# sentr/core/prompt_manager.py
 
 import json
 import os
@@ -20,7 +20,7 @@ class PromptManager:
         Initializes the PromptManager.
 
         Args:
-            library_file (str): The name of the JSON file in the aegis.prompts package.
+            library_file (str): The name of the JSON file in the sentr.prompts package.
         """
         self.prompts: List[AdversarialPrompt] = []
         self.library_file = library_file
@@ -32,10 +32,10 @@ class PromptManager:
         try:
             # This approach is robust for both installed packages and local development
             if sys.version_info < (3, 9):
-                 with resources.path('aegis.prompts', self.library_file) as p:
+                 with resources.path('sentr.prompts', self.library_file) as p:
                      return str(p)
             else:
-                return str(resources.files('aegis.prompts').joinpath(self.library_file))
+                return str(resources.files('sentr.prompts').joinpath(self.library_file))
         except (ModuleNotFoundError, FileNotFoundError):
             print(f"Warning: Could not find the prompt library '{self.library_file}'.")
             return None

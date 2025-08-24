@@ -1,8 +1,8 @@
 # tests/test_code_security_evaluator.py
 
 import unittest
-from aegis.core.evaluators.code_security import CodeSecurityEvaluator
-from aegis.core.models import ModelResponse, Classification
+from sentr.core.evaluators.code_security import CodeSecurityEvaluator
+from sentr.core.models import ModelResponse, Classification
 
 class TestCodeSecurityEvaluator(unittest.TestCase):
     """

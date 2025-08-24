@@ -1,10 +1,11 @@
-# aegis/cli.py
+# SENTR-FRAMEWORK/sentr/cli.py
 
 import typer
 import json
 import csv
 import os
 from typing import Optional, List, Dict, Any
+from io import BytesIO
 
 from rich.console import Console
 from rich.table import Table
@@ -13,62 +14,89 @@ from rich.progress import Progress
 import plotly.express as px
 import pandas as pd
 
-from aegis.core.prompt_manager import PromptManager
-from aegis.core.connectors import (
+from sentr.core.prompt_manager import PromptManager
+from sentr.core.connectors import (
     OpenRouterConnector, 
     ModelConnector, 
     UserProvidedGeminiConnector,
-    LocalModelConnector
+    LocalModelConnector,
+    OpenAIConnector,
+    AnthropicConnector,
+    CustomEndpointConnector
 )
-from aegis.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
-from aegis.core.analyzer import LLMAnalyzer
-from aegis.core.reporting import generate_pdf_report
-from aegis.core.prompt_generator import PromptGenerator
+from sentr.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
+from sentr.core.analyzer import LLMAnalyzer
+from sentr.core.reporting import generate_pdf_report
+from sentr.core.prompt_generator import PromptGenerator
 
 
 app = typer.Typer(
-    name="aegis",
-    help="Aegis: LLM Red Teaming and Evaluation Framework",
+    name="sentr",
+    help="Sentr: Secure Evaluation of Neural Testing & Red-teaming",
     add_completion=False,
 )
 console = Console()
 
 def get_connector(model_identifier: str) -> ModelConnector:
     """Helper function to instantiate the correct model connector."""
+    # --- Feature 3: Check if the identifier is a local directory path ---
     if os.path.isdir(model_identifier):
+        console.print(f"[cyan]Detected local model path: '{model_identifier}'[/cyan]")
         try:
             return LocalModelConnector(model_name=model_identifier)
         except (ImportError, ValueError) as e:
             console.print(f"[bold red]Local Model Error: {e}[/bold red]")
             raise typer.Exit(code=1)
 
+    # --- Existing logic for API-based models ---
     parts = model_identifier.lower().split('/')
     provider = parts[0]
+    model_name_only = "/".join(parts[1:])
+
     try:
         if provider == "gemini":
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 raise ValueError("GEMINI_API_KEY must be set in your environment.")
-            return UserProvidedGeminiConnector(model_name="gemini-1.5-flash-latest", api_key=api_key)
+            # Default to a good model if not specified
+            model_to_use = model_name_only if model_name_only else "gemini-1.5-flash-latest"
+            return UserProvidedGeminiConnector(model_name=model_to_use, api_key=api_key)
+            
+        elif provider == "openai":
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY must be set in your environment.")
+            if not model_name_only:
+                raise ValueError("OpenAI model name must be specified (e.g., 'openai/gpt-4o-mini').")
+            return OpenAIConnector(model_name=model_name_only, api_key=api_key)
+
+        elif provider == "anthropic":
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY must be set in your environment.")
+            if not model_name_only:
+                raise ValueError("Anthropic model name must be specified (e.g., 'anthropic/claude-3-5-sonnet-20240620').")
+            return AnthropicConnector(model_name=model_name_only, api_key=api_key)
+
         elif provider == "openrouter":
-            if len(parts) < 2:
-                console.print("[bold red]Error: OpenRouter model must be specified as 'openrouter/model-name'.[/bold red]")
-                raise typer.Exit(code=1)
             api_key = os.getenv("OPENROUTER_API_KEY")
             if not api_key:
                 raise ValueError("OPENROUTER_API_KEY must be set in your environment.")
-            model_name = "/".join(parts[1:])
-            return OpenRouterConnector(model_name=model_name, api_key=api_key)
+            if not model_name_only:
+                raise ValueError("OpenRouter model name must be specified (e.g., 'openrouter/google/gemma-2-9b-it').")
+            return OpenRouterConnector(model_name=model_name_only, api_key=api_key)
+            
         else:
             console.print(f"[bold red]Error: Provider '{provider}' is not supported. For local models, provide a valid directory path.[/bold red]")
             raise typer.Exit(code=1)
+            
     except ValueError as e:
         console.print(f"[bold red]Initialization Error for {provider}: {e}[/bold red]")
         raise typer.Exit(code=1)
 
 def display_single_result(response: ModelResponse, analysis: AnalysisResult):
     """Displays a single evaluation result in a formatted table and panels."""
-    table = Table(title="Aegis Evaluation Result", show_header=True, header_style="bold magenta")
+    table = Table(title="Sentr Evaluation Result", show_header=True, header_style="bold magenta")
     table.add_column("Field", style="dim", width=20)
     table.add_column("Value")
     color = "white"
@@ -124,11 +152,12 @@ def save_results_to_csv(results: List[Dict[str, Any]], filepath: str):
 @app.command()
 def evaluate(
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run."),
-    model: str = typer.Option("gemini", "--model", "-m", help="Model to evaluate (e.g., 'gemini', or a local path like './models/my-llama')."),
+    model: str = typer.Option(..., "--model", "-m", help="Model to evaluate (e.g., 'gemini/gemini-1.5-flash-latest', 'openai/gpt-4o-mini', or a local path like './models/my-llama')."),
 ):
     """Run a single adversarial prompt evaluation against a specified model."""
-    console.print(f"[bold cyan]🚀 Starting Aegis Evaluation...[/bold cyan]")
+    console.print(f"[bold cyan]🚀 Starting Sentr Evaluation...[/bold cyan]")
     manager, analyzer = PromptManager(), LLMAnalyzer()
+    manager.load_prompts()
     target_prompt = next((p for p in manager.get_all() if p.id == prompt_id), None)
     if not target_prompt:
         console.print(f"[bold red]Error: Prompt with ID '{prompt_id}' not found.[/bold red]")
@@ -138,7 +167,7 @@ def evaluate(
     connector = get_connector(model)
     response = connector.send_prompt(target_prompt)
     console.print("✅ Response received.")
-    console.print("✅ Analyzing response with LLM evaluator...")
+    console.print("✅ Analyzing response with evaluators...")
     analysis_result = analyzer.analyze(response, target_prompt)
     console.print("✅ Analysis complete.")
     display_single_result(response, analysis_result)
@@ -147,7 +176,7 @@ def evaluate(
 @app.command(name="batch-evaluate")
 def batch_evaluate(
     category: str = typer.Option(..., "--category", "-c", help="The category of prompts to evaluate."),
-    model: str = typer.Option("gemini", "--model", "-m", help="Model to evaluate (e.g., 'gemini', or a local path)."),
+    model: str = typer.Option(..., "--model", "-m", help="Model to evaluate (e.g., 'gemini/gemini-1.5-flash-latest', or a local path)."),
     output_json: Optional[str] = typer.Option(None, "--output-json", help="Path to save results as a JSON file."),
     output_csv: Optional[str] = typer.Option(None, "--output-csv", help="Path to save results as a CSV file."),
     output_pdf: Optional[str] = typer.Option(None, "--output-pdf", help="Path to save a PDF report."),
@@ -155,6 +184,7 @@ def batch_evaluate(
     """Run a batch evaluation for a category and optionally save the results."""
     console.print(f"[bold cyan]🚀 Starting Batch Evaluation for category '{category}'...[/bold cyan]")
     manager, analyzer = PromptManager(), LLMAnalyzer()
+    manager.load_prompts()
     prompts_to_run = manager.filter_by_category(category)
     if not prompts_to_run:
         console.print(f"[bold red]Error: No prompts found for category '{category}'.[/bold red]")
@@ -202,7 +232,7 @@ def batch_evaluate(
     if output_pdf:
         console.print(f"🎨 Generating PDF report...")
         try:
-            chart_image_path = "temp_chart.png"
+            chart_image_buffer = BytesIO()
             classification_counts = pd.Series(classifications).value_counts()
             fig_bar = px.bar(
                 classification_counts, x=classification_counts.index, y=classification_counts.values,
@@ -213,9 +243,15 @@ def batch_evaluate(
                     'AMBIGUOUS': 'grey', 'ERROR': 'black'
                 }
             )
-            fig_bar.write_image(chart_image_path)
-            generate_pdf_report(results, output_pdf, chart_image_path)
-            os.remove(chart_image_path)
+            fig_bar.write_image(chart_image_buffer, format='png')
+            chart_image_buffer.seek(0)
+
+            pdf_buffer = BytesIO()
+            generate_pdf_report(results, pdf_buffer, chart_image_buffer)
+            
+            with open(output_pdf, "wb") as f:
+                f.write(pdf_buffer.getvalue())
+
             console.print(f"✅ PDF report saved to [bold green]{output_pdf}[/bold green]")
         except Exception as e:
             console.print(f"[bold red]Error generating PDF report: {e}[/bold red]")

@@ -1,4 +1,4 @@
-# aegis/core/evaluators/code_security.py
+# sentr/core/evaluators/code_security.py
 
 import re
 import subprocess

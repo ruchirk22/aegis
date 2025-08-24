@@ -1,4 +1,4 @@
-# aegis/core/evaluators/secrets.py
+# sentr/core/evaluators/secrets.py
 
 import re
 from .base import Evaluator

@@ -1,29 +1,29 @@
-# aegis/core/plugins.py
+# sentr/core/plugins.py
 
 import importlib
 import pkgutil
 import inspect
 from typing import Type, List
 
-class AegisPlugin:
+class sentrPlugin:
     """A base class that all plugins must inherit from."""
     pass
 
 class PluginManager:
     """
-    Discovers and loads all available Aegis plugins from specified packages.
+    Discovers and loads all available sentr plugins from specified packages.
     """
     def __init__(self, plugin_packages: List[str]):
-        self.plugins: List[Type[AegisPlugin]] = []
+        self.plugins: List[Type[sentrPlugin]] = []
         self.plugin_packages = plugin_packages
         self._discover_plugins()
 
     def _discover_plugins(self):
         """
-        Dynamically finds and imports all classes that inherit from AegisPlugin
+        Dynamically finds and imports all classes that inherit from sentrPlugin
         within the given packages.
         """
-        print("🔍 Discovering plugins...")
+        print("Discovering plugins...")
         discovered_plugins = set() # Use a set to avoid duplicates
 
         for package_name in self.plugin_packages:
@@ -35,8 +35,8 @@ class PluginManager:
                         attribute = getattr(module, attribute_name)
                         if (
                             isinstance(attribute, type) and
-                            issubclass(attribute, AegisPlugin) and
-                            attribute is not AegisPlugin and
+                            issubclass(attribute, sentrPlugin) and
+                            attribute is not sentrPlugin and
                             not inspect.isabstract(attribute) # FIX: Ignore abstract base classes
                         ):
                             if attribute not in discovered_plugins:
@@ -47,7 +47,7 @@ class PluginManager:
         
         self.plugins = list(discovered_plugins)
 
-    def get_plugins(self, plugin_type: Type[AegisPlugin]) -> List[AegisPlugin]:
+    def get_plugins(self, plugin_type: Type[sentrPlugin]) -> List[sentrPlugin]:
         """
         Gets all instantiated plugins of a specific type.
         """

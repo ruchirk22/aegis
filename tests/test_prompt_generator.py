@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from aegis.core.prompt_generator import PromptGenerator
-from aegis.core.models import AdversarialPrompt
+from sentr.core.prompt_generator import PromptGenerator
+from sentr.core.models import AdversarialPrompt
 
 # Sample prompts to be returned by the mocked PromptManager
 MOCK_BASE_PROMPTS = [
@@ -24,8 +24,8 @@ class TestPromptGenerator(unittest.TestCase):
     Unit tests for the PromptGenerator class.
     """
 
-    @patch('aegis.core.prompt_generator.PromptManager')
-    @patch('aegis.core.prompt_generator.naw.SynonymAug')
+    @patch('sentr.core.prompt_generator.PromptManager')
+    @patch('sentr.core.prompt_generator.naw.SynonymAug')
     def test_generate_prompts_synonym_strategy(self, MockSynonymAug, MockPromptManager):
         """
         Tests the successful generation of prompts using the synonym strategy.
@@ -72,7 +72,7 @@ class TestPromptGenerator(unittest.TestCase):
 
         print(f"✅ Success: Correctly generated {len(generated_prompts)} prompts with unique IDs.")
 
-    @patch('aegis.core.prompt_generator.PromptManager')
+    @patch('sentr.core.prompt_generator.PromptManager')
     def test_generate_prompts_no_base_prompts(self, MockPromptManager):
         """
         Tests that generation returns an empty list if no base prompts are found.

@@ -1,23 +1,45 @@
-# requirements.txt
+# SENTR-FRAMEWORK/requirements.txt
 
+# Core Streamlit for Web UI
 streamlit
+
+# Data Handling and Plotting
 pandas
-typer
-rich
-google-generativeai
-openai
-python-dotenv
-fpdf2
 plotly
 kaleido
-build
-twine
-bandit
-nlpaug
-textattack
+seaborn
+
+# CLI Framework
+typer[all]
+rich
+
+# LLM Provider SDKs
+google-generativeai
+openai
+anthropic
+python-dotenv
+requests
+
+# Reporting
+fpdf2
+
+# Local Model Support (Feature 3)
 transformers
 torch
-langchain
-langchain-community
-langchain-openai
-langchainhub
+# Recommended for faster inference on NVIDIA GPUs:
+# accelerate
+# bitsandbytes
+
+# Prompt Generation (Feature 2)
+nlpaug
+textattack
+
+# Security & Code Analysis
+bandit
+
+# Build & Distribution
+build
+twine
+
+# Testing
+pytest
