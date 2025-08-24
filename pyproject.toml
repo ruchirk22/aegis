@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentr"
-version = "1.0.3"
+version = "1.0.0"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
-description = "An Open-Source LLM Red Teaming & Evaluation Framework"
+description = "Secure Evaluation of Neural Testing & Red-teaming"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Security",
 ]
 dependencies = [
-    "typer[all]",
+    "typer",
     "rich",
     "plotly",
     "pandas",
@@ -33,7 +33,12 @@ dependencies = [
     "fpdf2",
     "streamlit",
     "kaleido",
-    "bandit"
+    "bandit",
+    "transformers",
+    "torch",
+    "nlpaug",
+    "textattack",
+    "seaborn"
 ]
 
 [project.urls]
@@ -43,6 +48,11 @@ dependencies = [
 [project.scripts]
 sentr = "sentr.cli:app"
 
-# Add this section to include the prompt files in the package
 [tool.setuptools.package-data]
 "sentr.prompts" = ["*.json"]
+
+# --- FIX: Explicitly define where to find the package ---
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sentr*"]
+exclude = ["tests*", "models*"]

@@ -34,6 +34,13 @@ torch
 nlpaug
 textattack
 
+# Agent-Based Red Teaming (Feature 4)
+langchain
+# --- CHANGE: Swapped OpenAI for Google GenAI ---
+langchain-google-genai
+langchain-community
+tavily-python
+
 # Security & Code Analysis
 bandit
 

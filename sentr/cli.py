@@ -28,6 +28,8 @@ from sentr.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
 from sentr.core.analyzer import LLMAnalyzer
 from sentr.core.reporting import generate_pdf_report
 from sentr.core.prompt_generator import PromptGenerator
+# --- Feature 4: New import for Agent Testing ---
+from sentr.agents.tester import AgentTester
 
 
 app = typer.Typer(
@@ -256,6 +258,41 @@ def batch_evaluate(
         except Exception as e:
             console.print(f"[bold red]Error generating PDF report: {e}[/bold red]")
             console.print("[bold yellow]Please ensure 'kaleido' is installed (`pip install kaleido`)[/bold yellow]")
+
+# --- Feature 4: New CLI command for Agent Testing ---
+@app.command(name="evaluate-agent")
+def evaluate_agent(
+    prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run against the agent."),
+):
+    """Run a single evaluation against a LangChain agent."""
+    console.print(f"[bold cyan]🤖 Starting Sentr Agent Evaluation...[/bold cyan]")
+    
+    try:
+        agent_tester = AgentTester()
+    except (ImportError, ValueError) as e:
+        console.print(f"[bold red]Agent Initialization Error: {e}[/bold red]")
+        raise typer.Exit(code=1)
+
+    manager, analyzer = PromptManager(), LLMAnalyzer()
+    manager.load_prompts()
+    target_prompt = next((p for p in manager.get_all() if p.id == prompt_id), None)
+    
+    if not target_prompt:
+        console.print(f"[bold red]Error: Prompt with ID '{prompt_id}' not found.[/bold red]")
+        raise typer.Exit(code=1)
+        
+    console.print(f"✅ Found Prompt [bold]'{prompt_id}'[/bold].")
+    console.print("✅ Sending prompt to agent...")
+    
+    response = agent_tester.evaluate_agent(target_prompt)
+    
+    console.print("✅ Response received from agent.")
+    console.print("✅ Analyzing agent response...")
+    
+    analysis_result = analyzer.analyze(response, target_prompt)
+    
+    console.print("✅ Analysis complete.")
+    display_single_result(response, analysis_result)
 
 @app.command(name="add-prompt")
 def add_prompt(
