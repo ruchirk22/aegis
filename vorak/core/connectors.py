@@ -62,12 +62,15 @@ class LocalModelConnector(ModelConnector):
             if prompt.image_data:
                 return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models.")
 
-            full_prompt_text = ""
+            # --- FIX: Only format as a conversation if history is provided ---
             if history:
                 print("Warning: Local models do not natively support chat history. Concatenating history as context.")
+                full_prompt_text = ""
                 for message in history:
                     full_prompt_text += f"{message['role'].title()}: {message['content']}\n\n"
-            full_prompt_text += f"User: {prompt.prompt_text}"
+                full_prompt_text += f"User: {prompt.prompt_text}"
+            else:
+                full_prompt_text = prompt.prompt_text
 
             outputs = self.pipe(
                 full_prompt_text,
@@ -185,7 +188,6 @@ class InternalGeminiConnector(ModelConnector):
 
     def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
-            # Internal connector does not use history for its single-turn analysis tasks
             response = self.client.generate_content(prompt.prompt_text)
             output_text = response.text or ""
             metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
@@ -247,8 +249,6 @@ class CustomEndpointConnector(ModelConnector):
 
     def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
-            # Note: Custom endpoints may have their own format for history.
-            # This implementation sends the current prompt only.
             payload = {"prompt": prompt.prompt_text, "history": history or []}
             response = requests.post(self.endpoint_url, json=payload, headers=self.headers, timeout=60)
             response.raise_for_status()
