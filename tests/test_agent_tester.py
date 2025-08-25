@@ -16,13 +16,9 @@ class TestAgentTester(unittest.TestCase):
     Unit tests for the AgentTester class.
     """
 
-    # --- CHANGE: Update mocks for Gemini ---
+    # --- FIX: Simplify mocks. We only need to control the final AgentExecutor. ---
     @patch('sentr.agents.tester.AgentExecutor')
-    @patch('sentr.agents.tester.ChatGoogleGenerativeAI')
-    @patch('sentr.agents.tester.TavilySearchResults')
-    @patch('sentr.agents.tester.ChatPromptTemplate')
-    @patch('sentr.agents.tester.create_tool_calling_agent')
-    def test_evaluate_agent_successful(self, mock_create_agent, mock_prompt_template, mock_tavily, mock_chat_gemini, mock_agent_executor):
+    def test_evaluate_agent_successful(self, mock_agent_executor):
         """
         Tests that evaluate_agent correctly invokes the agent and processes a successful response.
         """
@@ -35,8 +31,10 @@ class TestAgentTester(unittest.TestCase):
             "output": "This is the agent's successful response."
         }
         
-        with patch.object(AgentTester, '_create_sample_agent', return_value=mock_executor_instance):
+        # --- FIX: Patch __init__ to avoid raising ImportError if langchain is not installed ---
+        with patch.object(AgentTester, '__init__', return_value=None):
             agent_tester = AgentTester()
+            agent_tester.agent_executor = mock_executor_instance # Manually set the executor
             
             test_prompt = AdversarialPrompt(
                 id="AGENT_TEST_001",
@@ -69,9 +67,11 @@ class TestAgentTester(unittest.TestCase):
         mock_executor_instance = mock_agent_executor.return_value
         mock_executor_instance.invoke.side_effect = Exception("Simulated agent error")
 
-        with patch.object(AgentTester, '_create_sample_agent', return_value=mock_executor_instance):
+        # --- FIX: Patch __init__ to avoid raising ImportError ---
+        with patch.object(AgentTester, '__init__', return_value=None):
             agent_tester = AgentTester()
-            
+            agent_tester.agent_executor = mock_executor_instance # Manually set the executor
+
             test_prompt = AdversarialPrompt(
                 id="AGENT_TEST_002",
                 category="Agent_Test",
