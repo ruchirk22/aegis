@@ -1,8 +1,5 @@
 # Sentr: Secure Evaluation of Neural Testing & Red-teaming
 
-[![PyPI version](https://badge.fury.io/py/sentrred.svg)](https://pypi.org/project/sentr/)
-[![License](https://img.shields.io/github/license/ruchirk22/sentr.svg)](LICENSE.txt)
-
 Sentr is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
 
 ---

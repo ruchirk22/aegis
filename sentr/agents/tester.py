@@ -12,6 +12,9 @@ try:
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
+    # Define a dummy class if langchain is not available to avoid NameError on type hints
+    class AgentExecutor:
+        pass
 
 from sentr.core.models import AdversarialPrompt, ModelResponse
 
@@ -37,7 +40,7 @@ class AgentTester:
         self.agent_executor = self._create_sample_agent()
         print("✅ Sample LangChain agent (using Gemini) initialized successfully.")
 
-    def _create_sample_agent(self) -> AgentExecutor:
+    def _create_sample_agent(self) -> "AgentExecutor":
         """
         Creates a basic LangChain agent for demonstration and testing.
         This agent uses Google's Gemini model and a Tavily search tool.
