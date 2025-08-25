@@ -42,7 +42,7 @@ df = load_data()
 
 if not df.empty:
     st.sidebar.header("Dashboard Filters")
-    all_models = ["All Models"] + df['model_name'].unique().tolist()
+    all_models = ["All Models"] + sorted(df['model_name'].unique().tolist())
     selected_model = st.sidebar.selectbox("Filter by Model", options=all_models)
     
     df_filtered = df[df['model_name'] == selected_model] if selected_model != "All Models" else df
@@ -62,19 +62,37 @@ if not df.empty:
     # --- Visualizations ---
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Vulnerability Score Over Time")
-        df_trend = df_filtered.set_index('timestamp').resample('D')['vulnerability_score'].mean().reset_index()
-        fig_trend = px.line(df_trend, x='timestamp', y='vulnerability_score', title="Daily Average Vulnerability Score")
-        st.plotly_chart(fig_trend, use_container_width=True)
+        st.subheader("Vulnerability by Attack Category")
+        if not df_filtered.empty:
+            # --- REPLACEMENT CHART: More insightful for CXOs ---
+            category_vulns = df_filtered.groupby('category')['vulnerability_score'].mean().sort_values(ascending=True).reset_index()
+            
+            if not category_vulns.empty:
+                fig_cat = px.bar(
+                    category_vulns,
+                    x='vulnerability_score',
+                    y='category',
+                    orientation='h',
+                    title="Average Vulnerability Score per Category",
+                    labels={'vulnerability_score': 'Average Score', 'category': 'Attack Category'},
+                    text='vulnerability_score'
+                )
+                fig_cat.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig_cat.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_cat, use_container_width=True)
+            else:
+                st.info("Not enough data to display category vulnerabilities.")
+        else:
+            st.info("No data available for the selected filters.")
 
     with col2:
         st.subheader("Classification Breakdown")
         classification_counts = df_filtered['classification'].value_counts()
-        fig_bar = px.pie(classification_counts, values=classification_counts.values, names=classification_counts.index,
+        fig_pie = px.pie(classification_counts, values=classification_counts.values, names=classification_counts.index,
                          title="Evaluation Outcomes", hole=.3,
                          color=classification_counts.index,
                          color_discrete_map={'NON_COMPLIANT': '#FF4B4B', 'COMPLIANT': '#2ECC71', 'PARTIAL_COMPLIANCE': '#FFA500'})
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_pie, use_container_width=True)
 
     st.divider()
     
