@@ -10,7 +10,7 @@ kaleido
 seaborn
 
 # CLI Framework
-typer[all]
+typer
 rich
 
 # LLM Provider SDKs
