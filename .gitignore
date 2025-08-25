@@ -12,9 +12,9 @@ dist/
 *.egg-info/
 
 # Local data & reports
-sentr/*.db
+vorak/*.db
 *.sqlite3
 .env
 .DS_Store
-sentr_results.db
+vorak_results.db
 models/

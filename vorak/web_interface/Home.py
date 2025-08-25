@@ -1,4 +1,4 @@
-# sentr/web_interface/sentr.py
+# vorak/web_interface/vorak.py
 
 import streamlit as st
 import sys
@@ -15,22 +15,22 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 # --- End Path Correction ---
 
-from sentr.core.analyzer import LLMAnalyzer
-from sentr.core.connectors import (
+from vorak.core.analyzer import LLMAnalyzer
+from vorak.core.connectors import (
     OpenRouterConnector, 
     CustomEndpointConnector, 
     UserProvidedGeminiConnector,
     OpenAIConnector,
     AnthropicConnector
 )
-from sentr.core.models import AdversarialPrompt
-from sentr.core.prompt_manager import PromptManager
-from sentr.core.reporting import generate_pdf_report
-from sentr.core.database.manager import DatabaseManager
+from vorak.core.models import AdversarialPrompt
+from vorak.core.prompt_manager import PromptManager
+from vorak.core.reporting import generate_pdf_report
+from vorak.core.database.manager import DatabaseManager
 import plotly.express as px
 
 # --- Page Configuration ---
-st.set_page_config(page_title="sentr Framework", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="vorak Framework", page_icon="🛡️", layout="wide")
 
 # --- State Management & Caching ---
 @st.cache_resource
@@ -89,7 +89,7 @@ def display_analysis_results(result_data):
     st.info(f"**Analysis Explanation:**\n\n{analysis.explanation}")
 
 # --- UI Layout (Sidebar) ---
-st.sidebar.title("🛡️ sentr Framework")
+st.sidebar.title("🛡️ vorak Framework")
 st.title("Red Team Sandbox")
 with st.sidebar:
     st.header("Configuration")

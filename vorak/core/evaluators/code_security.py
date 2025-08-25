@@ -1,4 +1,4 @@
-# sentr/core/evaluators/code_security.py
+# vorak/core/evaluators/code_security.py
 
 import re
 import subprocess

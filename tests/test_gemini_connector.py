@@ -7,8 +7,8 @@ import os
 # Set a dummy API key before importing the connector
 os.environ['GEMINI_API_KEY'] = 'test_key_for_unit_testing'
 
-from sentr.core.connectors import InternalGeminiConnector
-from sentr.core.models import AdversarialPrompt, ModelResponse
+from vorak.core.connectors import InternalGeminiConnector
+from vorak.core.models import AdversarialPrompt, ModelResponse
 
 class TestInternalGeminiConnector(unittest.TestCase):
     """
@@ -17,7 +17,7 @@ class TestInternalGeminiConnector(unittest.TestCase):
     Uses mocking to simulate the Google Generative AI API.
     """
 
-    @patch('sentr.core.connectors.genai.GenerativeModel')
+    @patch('vorak.core.connectors.genai.GenerativeModel')
     def test_send_prompt_successful(self, MockGenerativeModel):
         """
         Verify that send_prompt correctly processes a successful Gemini API response.

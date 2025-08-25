@@ -1,12 +1,12 @@
-# sentr/core/evaluators/base.py
+# vorak/core/evaluators/base.py
 
 # FIX: Import ABC to mark this as an abstract class
 from abc import ABC, abstractmethod
 from ..models import ModelResponse, AnalysisResult
-from ..plugins import sentrPlugin
+from ..plugins import vorakPlugin
 
 # FIX: Inherit from ABC
-class Evaluator(sentrPlugin, ABC):
+class Evaluator(vorakPlugin, ABC):
     """
     Abstract Base Class for all evaluator modules.
     

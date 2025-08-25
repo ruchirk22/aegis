@@ -1,4 +1,4 @@
-# sentr/core/evaluators/secrets.py
+# vorak/core/evaluators/secrets.py
 
 import re
 from .base import Evaluator

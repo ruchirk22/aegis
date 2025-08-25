@@ -1,9 +1,9 @@
-# sentr/__main__.py
+# vorak/__main__.py
 
 # This file is the sole entry point for the command line.
 # It imports the Typer app from cli.py and runs it.
 
-from sentr.cli import app
+from vorak.cli import app
 
 if __name__ == "__main__":
     app()

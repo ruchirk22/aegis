@@ -1,4 +1,4 @@
-# sentr/core/analyzer.py
+# vorak/core/analyzer.py
 
 import json
 import time
@@ -28,8 +28,8 @@ class LLMAnalyzer:
         self.llm_connector = InternalGeminiConnector(model_name=self.DEFAULT_PRIMARY_MODEL)
         
         # --- New: Use the PluginManager to find all Evaluator plugins ---
-        # We tell the manager to look inside the 'sentr.core.evaluators' package.
-        self.plugin_manager = PluginManager(plugin_packages=["sentr.core.evaluators"])
+        # We tell the manager to look inside the 'vorak.core.evaluators' package.
+        self.plugin_manager = PluginManager(plugin_packages=["vorak.core.evaluators"])
         self.programmatic_evaluators: List[Evaluator] = self.plugin_manager.get_plugins(Evaluator)
         
         print(f"Analyzer initialized with {len(self.programmatic_evaluators)} dynamically loaded programmatic evaluators.")

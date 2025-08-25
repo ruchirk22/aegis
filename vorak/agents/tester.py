@@ -1,4 +1,4 @@
-# SENTR-FRAMEWORK/sentr/agents/tester.py
+# vorak-FRAMEWORK/vorak/agents/tester.py
 
 import os
 from typing import Dict, Any
@@ -16,7 +16,7 @@ except ImportError:
     class AgentExecutor:
         pass
 
-from sentr.core.models import AdversarialPrompt, ModelResponse
+from vorak.core.models import AdversarialPrompt, ModelResponse
 
 class AgentTester:
     """

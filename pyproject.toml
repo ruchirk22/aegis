@@ -5,12 +5,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sentr"
+name = "vorak"
 version = "1.0.0"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
-description = "Secure Evaluation of Neural Testing & Red-teaming"
+description = "Vulnerability Oriented Red-teaming for AI Knowledge"
 readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
@@ -42,17 +42,17 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/ruchirk22/sentr"
-"Bug Tracker" = "https://github.com/ruchirk22/sentr/issues"
+"Homepage" = "https://github.com/ruchirk22/vorak"
+"Bug Tracker" = "https://github.com/ruchirk22/vorak/issues"
 
 [project.scripts]
-sentr = "sentr.cli:app"
+vorak = "vorak.cli:app"
 
 [tool.setuptools.package-data]
-"sentr.prompts" = ["*.json"]
+"vorak.prompts" = ["*.json"]
 
 # --- FIX: Explicitly define where to find the package ---
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sentr*"]
+include = ["vorak*"]
 exclude = ["tests*", "models*"]

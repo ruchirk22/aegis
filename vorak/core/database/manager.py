@@ -1,4 +1,4 @@
-# sentr/core/database/manager.py
+# vorak/core/database/manager.py
 
 import sqlite3
 import pandas as pd
@@ -10,7 +10,7 @@ class DatabaseManager:
     Manages all interactions with the local SQLite database for storing
     evaluation results.
     """
-    def __init__(self, db_path: str = "sentr_results.db"):
+    def __init__(self, db_path: str = "vorak_results.db"):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._create_table()

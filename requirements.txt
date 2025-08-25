@@ -1,4 +1,4 @@
-# SENTR-FRAMEWORK/requirements.txt
+# vorak-FRAMEWORK/requirements.txt
 
 # Core Streamlit for Web UI
 streamlit

@@ -1,4 +1,4 @@
-# SENTR-FRAMEWORK/sentr/cli.py
+# vorak-FRAMEWORK/vorak/cli.py
 
 import typer
 import json
@@ -14,8 +14,8 @@ from rich.progress import Progress
 import plotly.express as px
 import pandas as pd
 
-from sentr.core.prompt_manager import PromptManager
-from sentr.core.connectors import (
+from vorak.core.prompt_manager import PromptManager
+from vorak.core.connectors import (
     OpenRouterConnector, 
     ModelConnector, 
     UserProvidedGeminiConnector,
@@ -24,17 +24,17 @@ from sentr.core.connectors import (
     AnthropicConnector,
     CustomEndpointConnector
 )
-from sentr.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
-from sentr.core.analyzer import LLMAnalyzer
-from sentr.core.reporting import generate_pdf_report
-from sentr.core.prompt_generator import PromptGenerator
+from vorak.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
+from vorak.core.analyzer import LLMAnalyzer
+from vorak.core.reporting import generate_pdf_report
+from vorak.core.prompt_generator import PromptGenerator
 # --- Feature 4: New import for Agent Testing ---
-from sentr.agents.tester import AgentTester
+from vorak.agents.tester import AgentTester
 
 
 app = typer.Typer(
-    name="sentr",
-    help="Sentr: Secure Evaluation of Neural Testing & Red-teaming",
+    name="vorak",
+    help="vorak: Secure Evaluation of Neural Testing & Red-teaming",
     add_completion=False,
 )
 console = Console()
@@ -98,7 +98,7 @@ def get_connector(model_identifier: str) -> ModelConnector:
 
 def display_single_result(response: ModelResponse, analysis: AnalysisResult):
     """Displays a single evaluation result in a formatted table and panels."""
-    table = Table(title="Sentr Evaluation Result", show_header=True, header_style="bold magenta")
+    table = Table(title="vorak Evaluation Result", show_header=True, header_style="bold magenta")
     table.add_column("Field", style="dim", width=20)
     table.add_column("Value")
     color = "white"
@@ -157,7 +157,7 @@ def evaluate(
     model: str = typer.Option(..., "--model", "-m", help="Model to evaluate (e.g., 'gemini/gemini-1.5-flash-latest', 'openai/gpt-4o-mini', or a local path like './models/my-llama')."),
 ):
     """Run a single adversarial prompt evaluation against a specified model."""
-    console.print(f"[bold cyan]🚀 Starting Sentr Evaluation...[/bold cyan]")
+    console.print(f"[bold cyan]🚀 Starting vorak Evaluation...[/bold cyan]")
     manager, analyzer = PromptManager(), LLMAnalyzer()
     manager.load_prompts()
     target_prompt = next((p for p in manager.get_all() if p.id == prompt_id), None)
@@ -265,7 +265,7 @@ def evaluate_agent(
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run against the agent."),
 ):
     """Run a single evaluation against a LangChain agent."""
-    console.print(f"[bold cyan]🤖 Starting Sentr Agent Evaluation...[/bold cyan]")
+    console.print(f"[bold cyan]🤖 Starting vorak Agent Evaluation...[/bold cyan]")
     
     try:
         agent_tester = AgentTester()

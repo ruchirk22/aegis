@@ -1,6 +1,6 @@
-# Contributing to Sentr
+# Contributing to vorak
 
-We're thrilled you're interested in contributing to sentr! Every contribution—from a bug report to a new feature—helps make the AI ecosystem safer. This guide will help you get started.
+We're thrilled you're interested in contributing to vorak! Every contribution—from a bug report to a new feature—helps make the AI ecosystem safer. This guide will help you get started.
 
 ## How to Contribute
 
@@ -16,8 +16,8 @@ You can contribute in several ways:
 2. **Clone** your fork locally:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/sentr.git
-   cd sentr
+   git clone https://github.com/YOUR_USERNAME/vorak.git
+   cd vorak
    ```
 
 3. **Create a virtual environment:**
@@ -45,7 +45,7 @@ pytest
 
 1. Ensure any install or build dependencies are removed before the end of the layer when doing a build.
 2. Update the `README.md` with details of changes to the interface. This includes new environment variables, exposed ports, useful file locations, and container parameters.
-3. Create a new **issue** on the main sentr repository to discuss the bug or feature you want to work on.
+3. Create a new **issue** on the main vorak repository to discuss the bug or feature you want to work on.
 4. Create a new branch:
 
    ```bash
@@ -59,7 +59,7 @@ pytest
    git push origin feature/your-feature-name
    ```
 
-7. **Open a pull request** from your fork to the main sentr repository and link it to the issue you created. We will review your PR as soon as possible.
+7. **Open a pull request** from your fork to the main vorak repository and link it to the issue you created. We will review your PR as soon as possible.
 
 ---
 

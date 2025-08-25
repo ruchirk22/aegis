@@ -1,4 +1,4 @@
-# sentr/core/evaluators/pii.py
+# vorak/core/evaluators/pii.py
 
 import re
 from .base import Evaluator

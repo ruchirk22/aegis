@@ -1,4 +1,4 @@
-# sentr/core/prompt_generator.py
+# vorak/core/prompt_generator.py
 
 import nlpaug.augmenter.word as naw
 import random

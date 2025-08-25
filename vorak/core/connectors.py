@@ -1,4 +1,4 @@
-# SENTR-FRAMEWORK/sentr/core/connectors.py
+# vorak-FRAMEWORK/vorak/core/connectors.py
 
 import os
 import json

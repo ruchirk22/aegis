@@ -1,4 +1,4 @@
-# SENTR-FRAMEWORK/tests/test_agent_tester.py
+# vorak-FRAMEWORK/tests/test_agent_tester.py
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -8,8 +8,8 @@ import os
 os.environ['GEMINI_API_KEY'] = 'test_gemini_key'
 os.environ['TAVILY_API_KEY'] = 'test_tavily_key'
 
-from sentr.agents.tester import AgentTester
-from sentr.core.models import AdversarialPrompt, ModelResponse
+from vorak.agents.tester import AgentTester
+from vorak.core.models import AdversarialPrompt, ModelResponse
 
 class TestAgentTester(unittest.TestCase):
     """
@@ -17,7 +17,7 @@ class TestAgentTester(unittest.TestCase):
     """
 
     # --- FIX: Simplify mocks. We only need to control the final AgentExecutor. ---
-    @patch('sentr.agents.tester.AgentExecutor')
+    @patch('vorak.agents.tester.AgentExecutor')
     def test_evaluate_agent_successful(self, mock_agent_executor):
         """
         Tests that evaluate_agent correctly invokes the agent and processes a successful response.
@@ -57,7 +57,7 @@ class TestAgentTester(unittest.TestCase):
         
         print("✅ Success: Correctly evaluated agent and parsed the response.")
 
-    @patch('sentr.agents.tester.AgentExecutor')
+    @patch('vorak.agents.tester.AgentExecutor')
     def test_evaluate_agent_handles_error(self, mock_agent_executor):
         """
         Tests that evaluate_agent correctly captures and reports an error from the agent.

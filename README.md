@@ -1,6 +1,9 @@
-# Sentr: Secure Evaluation of Neural Testing & Red-teaming
+# Vorak: Vulnerability Oriented Red-teaming for AI Knowledge
 
-Sentr is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
+[![PyPI version](https://badge.fury.io/py/vorak.svg)](https://pypi.org/project/vorak/1.0.0/)
+[![License](https://img.shields.io/github/license/ruchirk22/vorak.svg)](LICENSE.txt)
+
+Vorak is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
 
 ---
 
@@ -16,18 +19,16 @@ Sentr is an open-source Python framework for systematically evaluating the **sec
 - [Contributing](#contributing)
 - [License](#license)
 - [Citation](#citation)
-- [Acknowledgements](#acknowledgements)
-- [Community & Support](#community--support)
 
 ---
 
 ## Features
 
-- **LLM-Powered Analysis** – Uses an evaluator LLM to classify and score model responses.  
-- **Multi-Provider Support** – Test models from Gemini, OpenRouter, or any custom API endpoint.  
-- **Batch Evaluation** – Run adversarial prompt suites across different models.  
-- **Comprehensive Reporting** – Export results as PDF, JSON, or CSV.  
-- **Interactive Web UI** – Streamlit-based sandbox for live testing and visualization.  
+- **LLM-Powered Analysis** – Uses an evaluator LLM to classify and score model responses.
+- **Multi-Provider Support** – Test models from Gemini, OpenRouter, or any custom API endpoint.
+- **Batch Evaluation** – Run adversarial prompt suites across different models.
+- **Comprehensive Reporting** – Export results as PDF, JSON, or CSV.
+- **Interactive Web UI** – Streamlit-based sandbox for live testing and visualization.
 
 ---
 
@@ -36,14 +37,14 @@ Sentr is an open-source Python framework for systematically evaluating the **sec
 Install directly from PyPI:
 
 ```bash
-pip install sentr
+pip install vorak
 ```
 
 For Development setup (cloning and local installation):
 
 ```bash
-git clone https://github.com/ruchirk22/sentr.git
-cd sentr
+git clone [https://github.com/ruchirk22/vorak.git](https://github.com/ruchirk22/vorak.git)
+cd vorak
 pip install -r requirements.txt
 pip install -e .
 ```
@@ -64,13 +65,13 @@ GEMINI_API_KEY=your_gemini_api_key
 Single Prompt Evaluation:
 
 ```bash
-sentrred evaluate --model "openrouter/google/gemma-2-9b-it:free" --prompt-id "JBR_001"
+vorak evaluate --model "openrouter/google/gemma-2-9b-it:free" --prompt-id "JBR_001"
 ```
 
 Batch Evaluation:
 
 ```bash
-sentrred batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1.5-flash-latest" --output-json results.json
+vorak batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1.5-flash-latest" --output-json results.json
 ```
 
 ### Web Interface
@@ -78,13 +79,13 @@ sentrred batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1
 Start the streamlit-based UI:
 
 ```bash
-streamlit run sentr/web_interface/Sentr.py
+streamlit run vorak/web_interface/Home.py
 ```
 
 ## Project Structure
 
 ```bash
-sentr/               # Core framework
+vorak/               # Core framework
 tests/               # Unit tests
 .github/workflows/   # CI/CD configurations
 pyproject.toml       # Build configuration
@@ -96,41 +97,22 @@ README.md            # Project documentation
 
 ## Contributing
 
-We welcome contributions from the community.
-Please see CONTRIBUTING.md for setup instructions, coding standards, and best practices.
-
-- Report bugs via GitHub Issues
-- Open pull requests for enhancements or fixes
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-sentr is licensed under the Apache 2.0 License.
+vorak is licensed under the Apache 2.0 License.
 
 ## Citation
 
-If you use sentr in your research or security assessments, please cite as follows:
+If you use vorak in your research or security assessments, please cite as follows:
 
 ```bibtex
-@software{sentr,
+@software{vorak,
   author       = {Ruchir Kulkarni},
-  title        = {sentr: Secure Evaluation of Neural Testing & Red-teaming},
+  title        = {Vorak: Vulnerability Oriented Red-teaming for AI Knowledge},
   year         = {2025},
   publisher    = {PyPI},
-  url          = {https://pypi.org/project/sentr/}
+  url          = {[https://pypi.org/project/vorak/](https://pypi.org/project/vorak/)}
 }
 ```
-
-## Acknowledgements
-
-- Streamlit: powering the interactive dashboard
-- OpenRouter and Gemini: LLM provider integrations
-- FPDF: for PDF report generation
-- dotenv: for environment variable management
-
-## Community & Support
-
-- Github Repository
-- Issue Tracker
-- PyPi Package
-
-For questions, discussions, or collaboration, please open an issue or reach out via GitHub/Email.
