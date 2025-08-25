@@ -1,4 +1,4 @@
-# vorak-FRAMEWORK/tests/test_local_model_connector.py
+# tests/test_local_model_connector.py
 
 import unittest
 from unittest.mock import patch, MagicMock

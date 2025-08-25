@@ -1,8 +1,8 @@
 # tests/test_code_security_evaluator.py
 
 import unittest
-from sentr.core.evaluators.code_security import CodeSecurityEvaluator
-from sentr.core.models import ModelResponse, Classification
+from vorak.core.evaluators.code_security import CodeSecurityEvaluator
+from vorak.core.models import ModelResponse, Classification
 
 class TestCodeSecurityEvaluator(unittest.TestCase):
     """

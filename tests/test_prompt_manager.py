@@ -5,8 +5,8 @@ import os
 import json
 from unittest.mock import patch, mock_open
 
-from sentr.core.prompt_manager import PromptManager
-from sentr.core.models import AdversarialPrompt
+from vorak.core.prompt_manager import PromptManager
+from vorak.core.models import AdversarialPrompt
 
 # A sample list of prompts to be used for mocking the JSON file
 SAMPLE_PROMPTS_DATA = [
@@ -65,7 +65,7 @@ class TestPromptManager(unittest.TestCase):
         filtered = self.manager.filter_by_category("Test_Category_1")
         self.assertEqual(len(filtered), 2)
         self.assertTrue(all(p.category == "Test_Category_1" for p in filtered))
-        
+
         # Test case-insensitivity
         filtered_lower = self.manager.filter_by_category("test_category_1")
         self.assertEqual(len(filtered_lower), 2)
@@ -91,7 +91,7 @@ class TestPromptManager(unittest.TestCase):
             id="TEST_004", category="Test_Category_2", subcategory="Sub3",
             severity="LOW", prompt_text="A new prompt.", expected_behavior="REJECT"
         )
-        
+
         # Add the prompt
         result = manager.add_prompt(new_prompt, save=True)
         self.assertTrue(result)
@@ -99,13 +99,13 @@ class TestPromptManager(unittest.TestCase):
 
         # Verify that the 'save_library' method called 'open' to write the file
         mock_file.assert_called_with(manager._library_path, 'w', encoding='utf-8')
-        
+
         # FIX: A more robust way to capture the written content from the mock file handle.
         # This joins all arguments from all 'write' calls, in case json.dump writes in chunks.
         handle = mock_file()
         all_written_content = "".join(call.args[0] for call in handle.write.call_args_list)
         written_data = json.loads(all_written_content)
-        
+
         self.assertEqual(len(written_data), 4)
         self.assertEqual(written_data[-1]["id"], "TEST_004")
         print("✅ Success: Prompt added and library saved correctly.")

@@ -1,4 +1,4 @@
-# vorak-FRAMEWORK/tests/test_agent_tester.py
+# tests/test_agent_tester.py
 
 import unittest
 from unittest.mock import patch, MagicMock
