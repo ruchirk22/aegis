@@ -1,4 +1,4 @@
-# vorak-FRAMEWORK/vorak/core/connectors.py
+# vorak/core/connectors.py
 
 import os
 import json
@@ -11,15 +11,14 @@ import anthropic
 import google.generativeai as genai
 from PIL import Image
 from io import BytesIO
+from typing import List, Optional, Dict, Any
 
-# --- New imports for Feature 3 ---
 try:
     from transformers import pipeline
     import torch
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
-# --- End new imports ---
 
 from .models import ModelResponse, AdversarialPrompt
 
@@ -32,11 +31,10 @@ class ModelConnector(ABC):
         print(f"Connector for model '{self.model_name}' initialized.")
 
     @abstractmethod
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
-        """Sends a prompt to the respective model API."""
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
+        """Sends a prompt to the respective model API, optionally with conversation history."""
         pass
 
-# --- New Connector for Feature 3 ---
 class LocalModelConnector(ModelConnector):
     """Connector for local models using the transformers library."""
     def __init__(self, model_name: str):
@@ -46,7 +44,6 @@ class LocalModelConnector(ModelConnector):
         super().__init__(model_name)
         try:
             print(f"Loading local model from path: {self.model_name}...")
-            # Check for GPU availability and set device accordingly
             device = 0 if torch.cuda.is_available() else -1
             print(f"Using device: {'GPU' if device == 0 else 'CPU'}")
             
@@ -54,20 +51,26 @@ class LocalModelConnector(ModelConnector):
                 "text-generation", 
                 model=self.model_name,
                 device=device,
-                torch_dtype=torch.bfloat16 if device == 0 else torch.float32 # Use bfloat16 on GPU for performance
+                torch_dtype=torch.bfloat16 if device == 0 else torch.float32
             )
             print("✅ Local model loaded successfully.")
         except Exception as e:
-            raise ValueError(f"Failed to load local model '{self.model_name}'. Ensure the path is correct and required libraries are installed. Error: {e}")
+            raise ValueError(f"Failed to load local model '{self.model_name}'. Error: {e}")
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
-            # Multi-modal support for local models is not yet implemented.
             if prompt.image_data:
-                return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models in this version.")
+                return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error="Multi-modal prompts are not supported for local models.")
+
+            full_prompt_text = ""
+            if history:
+                print("Warning: Local models do not natively support chat history. Concatenating history as context.")
+                for message in history:
+                    full_prompt_text += f"{message['role'].title()}: {message['content']}\n\n"
+            full_prompt_text += f"User: {prompt.prompt_text}"
 
             outputs = self.pipe(
-                prompt.prompt_text,
+                full_prompt_text,
                 max_new_tokens=512,
                 do_sample=True,
                 temperature=0.7,
@@ -77,9 +80,8 @@ class LocalModelConnector(ModelConnector):
             
             output_text = outputs[0]['generated_text'] if outputs and 'generated_text' in outputs[0] else ""
             
-            # The pipeline often includes the prompt in the output, so we remove it.
-            if output_text.startswith(prompt.prompt_text):
-                output_text = output_text[len(prompt.prompt_text):].strip()
+            if output_text.startswith(full_prompt_text):
+                output_text = output_text[len(full_prompt_text):].strip()
 
             return ModelResponse(
                 output_text=output_text,
@@ -90,7 +92,6 @@ class LocalModelConnector(ModelConnector):
             return ModelResponse(output_text="", prompt_id=prompt.id, model_name=self.model_name, error=str(e))
 
 
-# --- Existing connectors (OpenAI, Anthropic, Gemini, etc.) remain below ---
 class OpenAIConnector(ModelConnector):
     """Connector for OpenAI models like GPT-4, with multi-modal support."""
     def __init__(self, model_name: str, api_key: str):
@@ -99,21 +100,22 @@ class OpenAIConnector(ModelConnector):
             raise ValueError("OpenAI API key was not provided.")
         self.client = OpenAI(api_key=api_key)
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
+            messages = history or []
+            
             content = [{"type": "text", "text": prompt.prompt_text}]
             if prompt.image_data:
                 base64_image = base64.b64encode(prompt.image_data).decode('utf-8')
                 content.append({
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    }
+                    "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
                 })
+            messages.append({"role": "user", "content": content})
 
             chat_completion = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[{"role": "user", "content": content}]
+                messages=messages
             )
             output_text = chat_completion.choices[0].message.content or ""
             metadata = {
@@ -137,8 +139,10 @@ class AnthropicConnector(ModelConnector):
             raise ValueError("Anthropic API key was not provided.")
         self.client = anthropic.Anthropic(api_key=api_key)
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
+            messages = history or []
+            
             content = [{"type": "text", "text": prompt.prompt_text}]
             if prompt.image_data:
                 img = Image.open(BytesIO(prompt.image_data))
@@ -146,17 +150,14 @@ class AnthropicConnector(ModelConnector):
                 base64_image = base64.b64encode(prompt.image_data).decode('utf-8')
                 content.insert(0, {
                     "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": base64_image,
-                    },
+                    "source": {"type": "base64", "media_type": media_type, "data": base64_image},
                 })
+            messages.append({"role": "user", "content": content})
 
             message = self.client.messages.create(
                 model=self.model_name,
                 max_tokens=2048,
-                messages=[{"role": "user", "content": content}]
+                messages=messages
             )
             output_text = message.content[0].text if message.content else ""
             metadata = {
@@ -178,12 +179,13 @@ class InternalGeminiConnector(ModelConnector):
         super().__init__(model_name)
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY for the evaluator model is not set in the environment.")
+            raise ValueError("GEMINI_API_KEY for the evaluator model is not set.")
         genai.configure(api_key=api_key)
         self.client = genai.GenerativeModel(self.model_name)
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
+            # Internal connector does not use history for its single-turn analysis tasks
             response = self.client.generate_content(prompt.prompt_text)
             output_text = response.text or ""
             metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
@@ -200,14 +202,16 @@ class UserProvidedGeminiConnector(ModelConnector):
         genai.configure(api_key=api_key)
         self.client = genai.GenerativeModel(self.model_name)
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
+            chat = self.client.start_chat(history=(history or []))
+            
             content = [prompt.prompt_text]
             if prompt.image_data:
                 img = Image.open(BytesIO(prompt.image_data))
                 content.append(img)
             
-            response = self.client.generate_content(content)
+            response = chat.send_message(content)
             output_text = response.text or ""
             metadata = {"finish_reason": response.prompt_feedback.block_reason.name if response.prompt_feedback else "UNKNOWN"}
             return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=self.model_name, metadata=metadata)
@@ -222,9 +226,12 @@ class OpenRouterConnector(ModelConnector):
             raise ValueError("OpenRouter API key was not provided.")
         self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
-            chat_completion = self.client.chat.completions.create(model=self.model_name, messages=[{"role": "user", "content": prompt.prompt_text}])
+            messages = history or []
+            messages.append({"role": "user", "content": prompt.prompt_text})
+            
+            chat_completion = self.client.chat.completions.create(model=self.model_name, messages=messages)
             output_text = chat_completion.choices[0].message.content or ""
             metadata = {"finish_reason": chat_completion.choices[0].finish_reason, "usage": chat_completion.usage.total_tokens if chat_completion.usage else 0}
             return ModelResponse(output_text=output_text.strip(), prompt_id=prompt.id, model_name=f"openrouter/{self.model_name}", metadata=metadata)
@@ -238,9 +245,11 @@ class CustomEndpointConnector(ModelConnector):
         self.endpoint_url = endpoint_url
         self.headers = headers
 
-    def send_prompt(self, prompt: AdversarialPrompt) -> ModelResponse:
+    def send_prompt(self, prompt: AdversarialPrompt, history: Optional[List[Dict[str, Any]]] = None) -> ModelResponse:
         try:
-            payload = {"prompt": prompt.prompt_text}
+            # Note: Custom endpoints may have their own format for history.
+            # This implementation sends the current prompt only.
+            payload = {"prompt": prompt.prompt_text, "history": history or []}
             response = requests.post(self.endpoint_url, json=payload, headers=self.headers, timeout=60)
             response.raise_for_status()
             response_json = response.json()

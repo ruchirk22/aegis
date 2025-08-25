@@ -2,7 +2,6 @@
 
 [![PyPI version](https://badge.fury.io/py/vorak.svg)](https://pypi.org/project/vorak/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://github.com/ruchirk22/vorak/actions/workflows/tests.yml/badge.svg)](https://github.com/ruchirk22/vorak/actions)
 [![Python Version](https://img.shields.io/pypi/pyversions/vorak.svg)](https://pypi.org/project/vorak/)
 
 Vorak is a Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red-teaming, and structured vulnerability assessments to help researchers, developers, and enterprises identify and mitigate risks in generative AI systems.
