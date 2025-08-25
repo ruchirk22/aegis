@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vorak"
-version = "1.0.1"
+version = "1.0.2"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
