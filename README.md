@@ -1,9 +1,11 @@
 # Vorak: Vulnerability Oriented Red-teaming for AI Knowledge
 
-[![PyPI version](https://badge.fury.io/py/vorak.svg)](https://pypi.org/project/vorak/1.0.0/)
-[![License](https://img.shields.io/github/license/ruchirk22/vorak.svg)](https://github.com/ruchirk22/vorak/blob/main/LICENSE.txt)
+[![PyPI version](https://badge.fury.io/py/vorak.svg)](https://pypi.org/project/vorak/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Tests](https://github.com/ruchirk22/vorak/actions/workflows/tests.yml/badge.svg)](https://github.com/ruchirk22/vorak/actions)
+[![Python Version](https://img.shields.io/pypi/pyversions/vorak.svg)](https://pypi.org/project/vorak/)
 
-Vorak is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
+Vorak is a Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red-teaming, and structured vulnerability assessments to help researchers, developers, and enterprises identify and mitigate risks in generative AI systems.
 
 ---
 
@@ -11,9 +13,10 @@ Vorak is an open-source Python framework for systematically evaluating the **sec
 
 - [Features](#features)
 - [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Usage](#usage)
-  - [Command-Line Interface](#command-line-interface-cli)
+  - [Command-Line Interface](#command-line-interface)
   - [Web Interface](#web-interface)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
@@ -24,88 +27,126 @@ Vorak is an open-source Python framework for systematically evaluating the **sec
 
 ## Features
 
-- **LLM-Powered Analysis** – Uses an evaluator LLM to classify and score model responses.
-- **Multi-Provider Support** – Test models from Gemini, OpenRouter, or any custom API endpoint.
-- **Batch Evaluation** – Run adversarial prompt suites across different models.
-- **Comprehensive Reporting** – Export results as PDF, JSON, or CSV.
-- **Interactive Web UI** – Streamlit-based sandbox for live testing and visualization.
+- **LLM-Powered Evaluation** – Leverages evaluator LLMs to classify, score, and explain model behavior.
+- **Multi-Provider Support** – Compatible with Gemini, OpenRouter, Anthropic, OpenAI, and custom APIs.
+- **Adversarial Prompt Libraries** – Run curated or custom adversarial test suites at scale.
+- **Batch & Automated Testing** – Evaluate multiple models, prompts, or categories in a single run.
+- **Risk & Alignment Reporting** – Export structured outputs as **PDF, JSON, or CSV** for audits and dashboards.
+- **Interactive Web UI** – Streamlit-powered sandbox for interactive testing and visualization.
 
 ---
 
 ## Installation
 
-Install directly from PyPI:
+Install the latest release from PyPI:
 
 ```bash
 pip install vorak
 ```
 
-For Development setup (cloning and local installation):
+For development setup (cloning and local installation):
 
 ```bash
-git clone [https://github.com/ruchirk22/vorak.git](https://github.com/ruchirk22/vorak.git)
+git clone https://github.com/ruchirk22/vorak.git
 cd vorak
 pip install -r requirements.txt
 pip install -e .
 ```
 
-## Configuration
+---
 
-Set provider API key for LLM Evaluation.
-Create a .env in the project root:
+## Quick Start
+
+For help regarding all commands:
 
 ```bash
-GEMINI_API_KEY=your_gemini_api_key
+vorak evaluate --help
 ```
 
-## Usage
-
-### Command Line Interface (CLI)
-
-Single Prompt Evaluation:
+Run a single prompt evaluation:
 
 ```bash
 vorak evaluate --model "openrouter/google/gemma-2-9b-it:free" --prompt-id "JBR_001"
 ```
 
-Batch Evaluation:
+Run a batch evaluation across categories:
 
 ```bash
-vorak batch-evaluate --category "Jailbreaking_Role-Playing" --model "gemini-1.5-flash-latest" --output-json results.json
+vorak batch-evaluate --category "Jailbreaking_Role-Playing" \
+    --model "gemini-1.5-flash-latest" \
+    --output-json results.json
+```
+
+---
+
+## Configuration
+
+Vorak uses environment variables for model provider authentication. Create a `.env` file in the project root:
+
+```bash
+GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+```
+
+---
+
+## Usage
+
+### Command-Line Interface
+
+View available commands:
+
+```bash
+vorak --help
 ```
 
 ### Web Interface
 
-Start the streamlit-based UI:
+Launch the interactive Streamlit UI:
 
 ```bash
 streamlit run vorak/web_interface/Home.py
 ```
 
+---
+
 ## Project Structure
 
 ```bash
 vorak/               # Core framework
-tests/               # Unit tests
-.github/workflows/   # CI/CD configurations
+  ├── cli.py         # CLI entrypoint
+  ├── agents/        # Attack agents
+  ├── core/          # Evaluators, connectors, analyzers
+  ├── prompts/       # Prompt libraries
+  └── web_interface/ # Streamlit-based UI
+
+.tests/              # Unit tests
+.github/workflows/   # CI/CD configs
 pyproject.toml       # Build configuration
-requirements.txt     # Python dependencies
+requirements.txt     # Dependencies
 CONTRIBUTING.md      # Contribution guidelines
-LICENSE.txt          # License
-README.md            # Project documentation
+LICENSE              # License
+README.md            # Documentation
 ```
+
+---
 
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+---
+
 ## License
 
-vorak is licensed under the Apache 2.0 License.
+Vorak is licensed under the [Apache 2.0 License](LICENSE).
+
+---
 
 ## Citation
 
-If you use vorak in your research or security assessments, please cite as follows:
+If you use Vorak in your research, security assessments, or publications, please cite:
 
 ```bibtex
 @software{vorak,
@@ -113,6 +154,6 @@ If you use vorak in your research or security assessments, please cite as follow
   title        = {Vorak: Vulnerability Oriented Red-teaming for AI Knowledge},
   year         = {2025},
   publisher    = {PyPI},
-  url          = {[https://pypi.org/project/vorak/](https://pypi.org/project/vorak/)}
+  url          = {https://pypi.org/project/vorak/}
 }
 ```

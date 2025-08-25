@@ -11,14 +11,12 @@ class PDF(FPDF, HTMLMixin):
     
     def __init__(self, orientation='P', unit='mm', format='A4'):
         super().__init__(orientation, unit, format)
-        # Add a Unicode-compatible font (DejaVu Sans)
         try:
             self.add_font('DejaVu', '', '/System/Library/Fonts/DejaVuSans.ttf', uni=True)
             self.add_font('DejaVu', 'B', '/System/Library/Fonts/DejaVuSans-Bold.ttf', uni=True)
             self.add_font('DejaVu', 'I', '/System/Library/Fonts/DejaVuSans-Oblique.ttf', uni=True)
             self.unicode_font_available = True
         except:
-            # Fallback to default fonts if DejaVu is not available
             self.unicode_font_available = False
     
     def safe_text(self, text):
@@ -26,26 +24,14 @@ class PDF(FPDF, HTMLMixin):
         if self.unicode_font_available:
             return text
         else:
-            # Replace common Unicode characters with ASCII equivalents
             replacements = {
-                ''': "'",  # Left single quotation mark
-                ''': "'",  # Right single quotation mark
-                '"': '"',  # Left double quotation mark
-                '"': '"',  # Right double quotation mark
-                '–': '-',  # En dash
-                '—': '--', # Em dash
-                '…': '...',# Horizontal ellipsis
-                '©': '(c)',# Copyright
-                '®': '(r)',# Registered
-                '™': '(tm)',# Trademark
+                '’': "'", '‘': "'", '”': '"', '“': '"',
+                '–': '-', '—': '--', '…': '...', '©': '(c)',
+                '®': '(r)', '™': '(tm)',
             }
-            
             for unicode_char, ascii_char in replacements.items():
                 text = text.replace(unicode_char, ascii_char)
-            
-            # Remove any remaining non-ASCII characters
-            text = unicodedata.normalize('NFKD', text)
-            text = text.encode('ascii', 'ignore').decode('ascii')
+            text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
             return text
     
     def set_safe_font(self, family, style='', size=0):
@@ -57,7 +43,7 @@ class PDF(FPDF, HTMLMixin):
 
     def header(self):
         self.set_safe_font('Arial', 'B', 12)
-        self.cell(0, 10, self.safe_text('vorak LLM Security Report'), 0, 1, 'C')
+        self.cell(0, 10, self.safe_text('Vorak LLM Security Report'), 0, 1, 'C')
         self.ln(5)
 
     def footer(self):
@@ -77,7 +63,7 @@ class PDF(FPDF, HTMLMixin):
         self.set_text_color(*color)
         safe_content = self.safe_text(str(content))
         self.multi_cell(0, 5, safe_content)
-        self.set_text_color(0, 0, 0)  # Reset color
+        self.set_text_color(0, 0, 0)
         self.ln()
 
 def generate_pdf_report(results: list, output_buffer: BytesIO, chart_image_buffer: BytesIO):
@@ -98,7 +84,11 @@ def generate_pdf_report(results: list, output_buffer: BytesIO, chart_image_buffe
     pdf.add_page()
 
     # --- Summary Page ---
-    pdf.chapter_title(f"Evaluation Summary: '{first_result['prompt'].category}'")
+    report_title = f"Evaluation Summary: '{first_result['prompt'].category}'"
+    if len(results) > 1 and "_ADAPT_" in results[1]["prompt"].id:
+        report_title = f"Adaptive Evaluation Summary for '{first_result['prompt'].id}'"
+    
+    pdf.chapter_title(report_title)
     pdf.set_safe_font('Arial', '', 11)
     pdf.cell(0, 8, pdf.safe_text(f"Report generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"), 0, 1, 'L')
     pdf.cell(0, 8, pdf.safe_text(f"Model Tested: {first_result['response'].model_name}"), 0, 1, 'L')
@@ -114,16 +104,13 @@ def generate_pdf_report(results: list, output_buffer: BytesIO, chart_image_buffe
 
     pdf.chapter_title("Classification Breakdown")
     
-    # Handle chart image insertion safely
     try:
-        chart_image_buffer.seek(0)  # Reset buffer position
+        chart_image_buffer.seek(0)
         pdf.image(chart_image_buffer, x=10, y=None, w=190, type='PNG')
     except Exception as e:
-        # If chart insertion fails, add a text note
         pdf.set_safe_font('Arial', 'I', 10)
         pdf.cell(0, 8, pdf.safe_text(f"Chart could not be inserted: {str(e)}"), 0, 1, 'L')
     
-    # --- Detailed Results Section ---
     pdf.add_page()
     pdf.chapter_title("Detailed Evaluation Results")
 
@@ -132,31 +119,35 @@ def generate_pdf_report(results: list, output_buffer: BytesIO, chart_image_buffe
         response = res["response"]
         analysis = res["analysis"]
 
-        # Add a separator for all but the first entry
         if i > 0:
             pdf.ln(5)
             pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 190, pdf.get_y())
             pdf.ln(5)
 
-        pdf.set_safe_font('Arial', 'B', 11)
-        pdf.cell(0, 8, pdf.safe_text(f"Result for Prompt ID: {prompt.id}"), 0, 1, 'L')
+        # --- MODIFIED: Add special header for adaptive prompts ---
+        result_header = f"Result for Prompt ID: {prompt.id}"
+        if "_ADAPT_" in prompt.id:
+            result_header = f"Adaptive Escalation Result (ID: {prompt.id})"
         
-        # Display classification and score
-        classification_color = (0, 0, 0)  # Default black
-        if analysis.classification.name == "NON_COMPLIANT": 
-            classification_color = (220, 50, 50)  # Red
-        elif analysis.classification.name == "COMPLIANT": 
-            classification_color = (0, 128, 0)  # Green
-        elif analysis.classification.name == "PARTIAL_COMPLIANCE": 
-            classification_color = (255, 165, 0)  # Orange
+        pdf.set_safe_font('Arial', 'B', 11)
+        pdf.cell(0, 8, pdf.safe_text(result_header), 0, 1, 'L')
+        
+        classification_color = (0, 0, 0)
+        if analysis.classification.name == "NON_COMPLIANT": classification_color = (220, 50, 50)
+        elif analysis.classification.name == "COMPLIANT": classification_color = (0, 128, 0)
+        elif analysis.classification.name == "PARTIAL_COMPLIANCE": classification_color = (255, 165, 0)
         
         pdf.set_safe_font('Arial', 'B', 10)
         pdf.set_text_color(*classification_color)
         pdf.cell(0, 6, pdf.safe_text(f"Classification: {analysis.classification.name} (Score: {analysis.vulnerability_score:.1f})"), 0, 1, 'L')
-        pdf.set_text_color(0, 0, 0)  # Reset color
+        pdf.set_text_color(0, 0, 0)
+
+        prompt_header = "Adversarial Prompt:"
+        if "_ADAPT_" in prompt.id:
+            prompt_header = "Generated Adaptive Prompt:"
 
         pdf.set_safe_font('Arial', 'B', 10)
-        pdf.cell(0, 8, pdf.safe_text("Adversarial Prompt:"), 0, 1, 'L')
+        pdf.cell(0, 8, pdf.safe_text(prompt_header), 0, 1, 'L')
         pdf.chapter_body(prompt.prompt_text)
 
         pdf.set_safe_font('Arial', 'B', 10)

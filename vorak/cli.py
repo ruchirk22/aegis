@@ -14,6 +14,7 @@ from rich.panel import Panel
 from rich.progress import Progress
 import plotly.express as px
 import pandas as pd
+from rich.text import Text
 
 from vorak.core.prompt_manager import PromptManager
 from vorak.core.connectors import (
@@ -25,8 +26,7 @@ from vorak.core.connectors import (
     AnthropicConnector,
     CustomEndpointConnector
 )
-# --- MODIFIED: Feature 1 - Import new EvaluationMode ---
-from vorak.core.models import ModelResponse, AnalysisResult, AdversarialPrompt, EvaluationMode
+from vorak.core.models import ModelResponse, AnalysisResult, AdversarialPrompt, EvaluationMode, Classification
 from vorak.core.analyzer import LLMAnalyzer
 from vorak.core.reporting import generate_pdf_report
 from vorak.core.prompt_generator import PromptGenerator
@@ -94,9 +94,9 @@ def get_connector(model_identifier: str) -> ModelConnector:
         console.print(f"[bold red]Initialization Error for {provider}: {e}[/bold red]")
         raise typer.Exit(code=1)
 
-def display_single_result(response: ModelResponse, analysis: AnalysisResult):
+def display_single_result(response: ModelResponse, analysis: AnalysisResult, title: str = "Vorak Evaluation Result"):
     """Displays a single evaluation result in a formatted table and panels."""
-    table = Table(title="Vorak Evaluation Result", show_header=True, header_style="bold magenta")
+    table = Table(title=title, show_header=True, header_style="bold magenta")
     table.add_column("Field", style="dim", width=20)
     table.add_column("Value")
     color = "white"
@@ -108,8 +108,8 @@ def display_single_result(response: ModelResponse, analysis: AnalysisResult):
     table.add_row(f"[{color}]Classification[/{color}]", f"[{color}]{analysis.classification.name}[/{color}]")
     table.add_row("Vulnerability Score", f"{analysis.vulnerability_score:.1f} / 100.0")
     console.print(table)
-    console.print(Panel(response.output_text, title="[cyan]Model Output[/cyan]", border_style="cyan"))
-    console.print(Panel(analysis.explanation, title="[cyan]Analysis Explanation[/cyan]", border_style="cyan"))
+    console.print(Panel(Text(response.output_text), title="[cyan]Model Output[/cyan]", border_style="cyan"))
+    console.print(Panel(Text(analysis.explanation), title="[cyan]Analysis Explanation[/cyan]", border_style="cyan"))
 
 def save_results_to_json(results: List[Dict[str, Any]], filepath: str):
     """Saves a list of result dictionaries to a JSON file."""
@@ -149,7 +149,7 @@ def save_results_to_csv(results: List[Dict[str, Any]], filepath: str):
                 "explanation": result["analysis"].explanation,
             })
 
-# --- REFACTORED: Feature 1 - Unified evaluate command with modes ---
+# --- MODIFIED: Added output options to the evaluate command ---
 @app.command()
 def evaluate(
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run."),
@@ -160,6 +160,9 @@ def evaluate(
         help="The evaluation mode to use.",
         case_sensitive=False,
     ),
+    output_json: Optional[str] = typer.Option(None, "--output-json", help="Path to save results as a JSON file."),
+    output_csv: Optional[str] = typer.Option(None, "--output-csv", help="Path to save results as a CSV file."),
+    output_pdf: Optional[str] = typer.Option(None, "--output-pdf", help="Path to save a PDF report."),
 ):
     """Run a single adversarial prompt evaluation against a specified model."""
     console.print(f"[bold cyan]🚀 Starting Vorak Evaluation in '{mode.value}' mode...[/bold cyan]")
@@ -170,48 +173,107 @@ def evaluate(
         console.print(f"[bold red]Error: Prompt with ID '{prompt_id}' not found.[/bold red]")
         raise typer.Exit(code=1)
 
-    console.print(f"✅ Found Prompt [bold]'{prompt_id}'[/bold].")
+    console.print(f"✅ Found Prompt [bold]'{target_prompt.id}'[/bold].")
+    console.print(Panel(Text(target_prompt.prompt_text), title=f"[yellow]Initial Prompt: {target_prompt.id}[/yellow]", border_style="yellow"))
     console.print(f"✅ Initializing and sending to [bold]'{model}'[/bold]...")
     connector = get_connector(model)
 
-    # --- Mode-based logic ---
+    # --- MODIFIED: Collect all results for reporting ---
+    results_for_report = []
+
     if mode == EvaluationMode.STANDARD:
         console.print("Running in Standard mode...")
         response = connector.send_prompt(target_prompt)
-        console.print("✅ Response received.")
-        console.print("✅ Analyzing response with evaluators...")
         analysis_result = analyzer.analyze(response, target_prompt)
-        console.print("✅ Analysis complete.")
+        results_for_report.append({"prompt": target_prompt, "response": response, "analysis": analysis_result})
         display_single_result(response, analysis_result)
     
     elif mode == EvaluationMode.ADAPTIVE:
-        console.print("[bold yellow]🚧 Adaptive mode is under construction. Running standard evaluation as a placeholder.[/bold yellow]")
-        # Placeholder for future logic
+        console.print("Running in Adaptive mode...")
+        # Initial evaluation
         response = connector.send_prompt(target_prompt)
         analysis_result = analyzer.analyze(response, target_prompt)
-        display_single_result(response, analysis_result)
+        results_for_report.append({"prompt": target_prompt, "response": response, "analysis": analysis_result})
+        display_single_result(response, analysis_result, title="[bold]Initial Evaluation Result[/bold]")
+
+        if analysis_result.classification == Classification.COMPLIANT:
+            console.rule("[bold yellow]Attempting Adaptive Escalation[/bold yellow]")
+            new_prompt = analyzer.run_adaptive_escalation(target_prompt, response, attempt_num=1)
+            
+            if new_prompt:
+                console.print(Panel(Text(new_prompt.prompt_text), title=f"[yellow]Adaptive Prompt: {new_prompt.id}[/yellow]", border_style="yellow"))
+                new_response = connector.send_prompt(new_prompt)
+                new_analysis = analyzer.analyze(new_response, new_prompt)
+                results_for_report.append({"prompt": new_prompt, "response": new_response, "analysis": new_analysis})
+                display_single_result(new_response, new_analysis, title="[bold]Adaptive Evaluation Result[/bold]")
+            else:
+                console.print("[bold red]Could not generate an adaptive prompt. Ending evaluation.[/bold red]")
+        else:
+            console.print("[bold green]Initial prompt was not compliant. No need for adaptive escalation.[/bold green]")
 
     elif mode == EvaluationMode.GOVERNANCE:
         console.print("[bold yellow]🚧 Governance mode is not yet implemented.[/bold yellow]")
-        # Placeholder for future logic
+        # For now, just exit gracefully
+        raise typer.Exit()
 
     elif mode == EvaluationMode.ATTACK_ONLY:
         console.print("Running in Attack-Only mode...")
         response = connector.send_prompt(target_prompt)
         console.print("✅ Response received. Skipping analysis.")
         console.print(Panel(response.output_text, title="[cyan]Model Output[/cyan]", border_style="cyan"))
+        # No results to report in this mode
+        raise typer.Exit()
 
     elif mode == EvaluationMode.ANALYSIS_ONLY:
         console.print("[bold yellow]🚧 Analysis-Only mode is not yet implemented.[/bold yellow]")
-        # Placeholder for future logic
+        raise typer.Exit()
 
     elif mode == EvaluationMode.SCENARIO:
         console.print("[bold yellow]🚧 Scenario mode is not yet implemented.[/bold yellow]")
-        # Placeholder for future logic
+        raise typer.Exit()
         
     else:
         console.print(f"[bold red]Error: Mode '{mode.value}' is not recognized or implemented.[/bold red]")
         raise typer.Exit(code=1)
+
+    # --- MODIFIED: Handle report generation at the end ---
+    if results_for_report:
+        if output_json:
+            save_results_to_json(results_for_report, output_json)
+            console.print(f"✅ Full results saved to [bold green]{output_json}[/bold green]")
+        if output_csv:
+            save_results_to_csv(results_for_report, output_csv)
+            console.print(f"✅ Full results saved to [bold green]{output_csv}[/bold green]")
+        if output_pdf:
+            console.print(f"🎨 Generating PDF report...")
+            try:
+                # Note: Chart generation for a single/adaptive run might not be as meaningful as for a batch
+                # For now, we generate a simple chart based on the results we have.
+                classifications = [res["analysis"].classification.name for res in results_for_report]
+                chart_image_buffer = BytesIO()
+                classification_counts = pd.Series(classifications).value_counts()
+                fig_bar = px.bar(
+                    classification_counts, x=classification_counts.index, y=classification_counts.values,
+                    labels={'x': 'Classification', 'y': 'Count'}, title="Classification Breakdown",
+                    color=classification_counts.index,
+                    color_discrete_map={
+                        'NON_COMPLIANT': 'red', 'COMPLIANT': 'green', 'PARTIAL_COMPLIANCE': 'orange',
+                        'AMBIGUOUS': 'grey', 'ERROR': 'black'
+                    }
+                )
+                fig_bar.write_image(chart_image_buffer, format='png')
+                chart_image_buffer.seek(0)
+
+                pdf_buffer = BytesIO()
+                generate_pdf_report(results_for_report, pdf_buffer, chart_image_buffer)
+                
+                with open(output_pdf, "wb") as f:
+                    f.write(pdf_buffer.getvalue())
+
+                console.print(f"✅ PDF report saved to [bold green]{output_pdf}[/bold green]")
+            except Exception as e:
+                console.print(f"[bold red]Error generating PDF report: {e}[/bold red]")
+                console.print("[bold yellow]Please ensure 'kaleido' is installed (`pip install kaleido`)[/bold yellow]")
 
 
 @app.command(name="batch-evaluate")
