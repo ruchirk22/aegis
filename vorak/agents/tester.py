@@ -1,4 +1,4 @@
-# vorak-FRAMEWORK/vorak/agents/tester.py
+# vorak/agents/tester.py
 
 import os
 from typing import Dict, Any
@@ -12,7 +12,6 @@ try:
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
-    # Define a dummy class if langchain is not available to avoid NameError on type hints
     class AgentExecutor:
         pass
 
@@ -45,38 +44,26 @@ class AgentTester:
         Creates a basic LangChain agent for demonstration and testing.
         This agent uses Google's Gemini model and a Tavily search tool.
         """
-        # --- FIX: Explicitly pass the API key to the constructor ---
         api_key = os.getenv("GEMINI_API_KEY")
         llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", google_api_key=api_key)
         
-        # Define the tools the agent can use
         tools = [TavilySearchResults(max_results=1)]
         
-        # Define the prompt template for the agent
         prompt = ChatPromptTemplate.from_messages([
             ("system", "You are a helpful assistant."),
             ("user", "{input}"),
             ("placeholder", "{agent_scratchpad}"),
         ])
         
-        # Create the agent
         agent = create_tool_calling_agent(llm, tools, prompt)
         
-        # Create and return the agent executor
         return AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     def evaluate_agent(self, prompt: AdversarialPrompt) -> ModelResponse:
         """
         Sends a prompt to the initialized LangChain agent and captures its response.
-
-        Args:
-            prompt (AdversarialPrompt): The adversarial prompt to test the agent with.
-
-        Returns:
-            ModelResponse: A standardized response object containing the agent's output.
         """
         try:
-            # The agent's response is typically in a dictionary with an 'output' key
             response_dict = self.agent_executor.invoke({"input": prompt.prompt_text})
             output_text = response_dict.get("output", "No 'output' key found in agent response.")
             

@@ -1,7 +1,7 @@
 # Vorak: Vulnerability Oriented Red-teaming for AI Knowledge
 
 [![PyPI version](https://badge.fury.io/py/vorak.svg)](https://pypi.org/project/vorak/1.0.0/)
-[![License](https://img.shields.io/github/license/ruchirk22/vorak.svg)](LICENSE.txt)
+[![License](https://img.shields.io/github/license/ruchirk22/vorak.svg)](https://github.com/ruchirk22/vorak/blob/main/LICENSE.txt)
 
 Vorak is an open-source Python framework for systematically evaluating the **security posture** and **ethical alignment** of Large Language Models (LLMs). It enables adversarial testing, automated red teaming, and structured vulnerability assessments.
 

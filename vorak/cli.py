@@ -1,4 +1,4 @@
-# vorak-FRAMEWORK/vorak/cli.py
+# vorak/cli.py
 
 import typer
 import json
@@ -6,6 +6,7 @@ import csv
 import os
 from typing import Optional, List, Dict, Any
 from io import BytesIO
+from enum import Enum
 
 from rich.console import Console
 from rich.table import Table
@@ -16,32 +17,31 @@ import pandas as pd
 
 from vorak.core.prompt_manager import PromptManager
 from vorak.core.connectors import (
-    OpenRouterConnector, 
-    ModelConnector, 
+    OpenRouterConnector,
+    ModelConnector,
     UserProvidedGeminiConnector,
     LocalModelConnector,
     OpenAIConnector,
     AnthropicConnector,
     CustomEndpointConnector
 )
-from vorak.core.models import ModelResponse, AnalysisResult, AdversarialPrompt
+# --- MODIFIED: Feature 1 - Import new EvaluationMode ---
+from vorak.core.models import ModelResponse, AnalysisResult, AdversarialPrompt, EvaluationMode
 from vorak.core.analyzer import LLMAnalyzer
 from vorak.core.reporting import generate_pdf_report
 from vorak.core.prompt_generator import PromptGenerator
-# --- Feature 4: New import for Agent Testing ---
 from vorak.agents.tester import AgentTester
 
 
 app = typer.Typer(
     name="vorak",
-    help="vorak: Secure Evaluation of Neural Testing & Red-teaming",
+    help="Vorak: Vulnerability Oriented Red-teaming for AI Knowledge",
     add_completion=False,
 )
 console = Console()
 
 def get_connector(model_identifier: str) -> ModelConnector:
     """Helper function to instantiate the correct model connector."""
-    # --- Feature 3: Check if the identifier is a local directory path ---
     if os.path.isdir(model_identifier):
         console.print(f"[cyan]Detected local model path: '{model_identifier}'[/cyan]")
         try:
@@ -50,7 +50,6 @@ def get_connector(model_identifier: str) -> ModelConnector:
             console.print(f"[bold red]Local Model Error: {e}[/bold red]")
             raise typer.Exit(code=1)
 
-    # --- Existing logic for API-based models ---
     parts = model_identifier.lower().split('/')
     provider = parts[0]
     model_name_only = "/".join(parts[1:])
@@ -60,10 +59,9 @@ def get_connector(model_identifier: str) -> ModelConnector:
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 raise ValueError("GEMINI_API_KEY must be set in your environment.")
-            # Default to a good model if not specified
             model_to_use = model_name_only if model_name_only else "gemini-1.5-flash-latest"
             return UserProvidedGeminiConnector(model_name=model_to_use, api_key=api_key)
-            
+
         elif provider == "openai":
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
@@ -87,18 +85,18 @@ def get_connector(model_identifier: str) -> ModelConnector:
             if not model_name_only:
                 raise ValueError("OpenRouter model name must be specified (e.g., 'openrouter/google/gemma-2-9b-it').")
             return OpenRouterConnector(model_name=model_name_only, api_key=api_key)
-            
+
         else:
             console.print(f"[bold red]Error: Provider '{provider}' is not supported. For local models, provide a valid directory path.[/bold red]")
             raise typer.Exit(code=1)
-            
+
     except ValueError as e:
         console.print(f"[bold red]Initialization Error for {provider}: {e}[/bold red]")
         raise typer.Exit(code=1)
 
 def display_single_result(response: ModelResponse, analysis: AnalysisResult):
     """Displays a single evaluation result in a formatted table and panels."""
-    table = Table(title="vorak Evaluation Result", show_header=True, header_style="bold magenta")
+    table = Table(title="Vorak Evaluation Result", show_header=True, header_style="bold magenta")
     table.add_column("Field", style="dim", width=20)
     table.add_column("Value")
     color = "white"
@@ -151,28 +149,69 @@ def save_results_to_csv(results: List[Dict[str, Any]], filepath: str):
                 "explanation": result["analysis"].explanation,
             })
 
+# --- REFACTORED: Feature 1 - Unified evaluate command with modes ---
 @app.command()
 def evaluate(
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run."),
     model: str = typer.Option(..., "--model", "-m", help="Model to evaluate (e.g., 'gemini/gemini-1.5-flash-latest', 'openai/gpt-4o-mini', or a local path like './models/my-llama')."),
+    mode: EvaluationMode = typer.Option(
+        EvaluationMode.STANDARD,
+        "--mode",
+        help="The evaluation mode to use.",
+        case_sensitive=False,
+    ),
 ):
     """Run a single adversarial prompt evaluation against a specified model."""
-    console.print(f"[bold cyan]🚀 Starting vorak Evaluation...[/bold cyan]")
+    console.print(f"[bold cyan]🚀 Starting Vorak Evaluation in '{mode.value}' mode...[/bold cyan]")
     manager, analyzer = PromptManager(), LLMAnalyzer()
     manager.load_prompts()
     target_prompt = next((p for p in manager.get_all() if p.id == prompt_id), None)
     if not target_prompt:
         console.print(f"[bold red]Error: Prompt with ID '{prompt_id}' not found.[/bold red]")
         raise typer.Exit(code=1)
+
     console.print(f"✅ Found Prompt [bold]'{prompt_id}'[/bold].")
     console.print(f"✅ Initializing and sending to [bold]'{model}'[/bold]...")
     connector = get_connector(model)
-    response = connector.send_prompt(target_prompt)
-    console.print("✅ Response received.")
-    console.print("✅ Analyzing response with evaluators...")
-    analysis_result = analyzer.analyze(response, target_prompt)
-    console.print("✅ Analysis complete.")
-    display_single_result(response, analysis_result)
+
+    # --- Mode-based logic ---
+    if mode == EvaluationMode.STANDARD:
+        console.print("Running in Standard mode...")
+        response = connector.send_prompt(target_prompt)
+        console.print("✅ Response received.")
+        console.print("✅ Analyzing response with evaluators...")
+        analysis_result = analyzer.analyze(response, target_prompt)
+        console.print("✅ Analysis complete.")
+        display_single_result(response, analysis_result)
+    
+    elif mode == EvaluationMode.ADAPTIVE:
+        console.print("[bold yellow]🚧 Adaptive mode is under construction. Running standard evaluation as a placeholder.[/bold yellow]")
+        # Placeholder for future logic
+        response = connector.send_prompt(target_prompt)
+        analysis_result = analyzer.analyze(response, target_prompt)
+        display_single_result(response, analysis_result)
+
+    elif mode == EvaluationMode.GOVERNANCE:
+        console.print("[bold yellow]🚧 Governance mode is not yet implemented.[/bold yellow]")
+        # Placeholder for future logic
+
+    elif mode == EvaluationMode.ATTACK_ONLY:
+        console.print("Running in Attack-Only mode...")
+        response = connector.send_prompt(target_prompt)
+        console.print("✅ Response received. Skipping analysis.")
+        console.print(Panel(response.output_text, title="[cyan]Model Output[/cyan]", border_style="cyan"))
+
+    elif mode == EvaluationMode.ANALYSIS_ONLY:
+        console.print("[bold yellow]🚧 Analysis-Only mode is not yet implemented.[/bold yellow]")
+        # Placeholder for future logic
+
+    elif mode == EvaluationMode.SCENARIO:
+        console.print("[bold yellow]🚧 Scenario mode is not yet implemented.[/bold yellow]")
+        # Placeholder for future logic
+        
+    else:
+        console.print(f"[bold red]Error: Mode '{mode.value}' is not recognized or implemented.[/bold red]")
+        raise typer.Exit(code=1)
 
 
 @app.command(name="batch-evaluate")
@@ -250,7 +289,7 @@ def batch_evaluate(
 
             pdf_buffer = BytesIO()
             generate_pdf_report(results, pdf_buffer, chart_image_buffer)
-            
+
             with open(output_pdf, "wb") as f:
                 f.write(pdf_buffer.getvalue())
 
@@ -259,14 +298,13 @@ def batch_evaluate(
             console.print(f"[bold red]Error generating PDF report: {e}[/bold red]")
             console.print("[bold yellow]Please ensure 'kaleido' is installed (`pip install kaleido`)[/bold yellow]")
 
-# --- Feature 4: New CLI command for Agent Testing ---
 @app.command(name="evaluate-agent")
 def evaluate_agent(
     prompt_id: str = typer.Option(..., "--prompt-id", "-p", help="The ID of the prompt to run against the agent."),
 ):
     """Run a single evaluation against a LangChain agent."""
-    console.print(f"[bold cyan]🤖 Starting vorak Agent Evaluation...[/bold cyan]")
-    
+    console.print(f"[bold cyan]🤖 Starting Vorak Agent Evaluation...[/bold cyan]")
+
     try:
         agent_tester = AgentTester()
     except (ImportError, ValueError) as e:
@@ -276,21 +314,21 @@ def evaluate_agent(
     manager, analyzer = PromptManager(), LLMAnalyzer()
     manager.load_prompts()
     target_prompt = next((p for p in manager.get_all() if p.id == prompt_id), None)
-    
+
     if not target_prompt:
         console.print(f"[bold red]Error: Prompt with ID '{prompt_id}' not found.[/bold red]")
         raise typer.Exit(code=1)
-        
+
     console.print(f"✅ Found Prompt [bold]'{prompt_id}'[/bold].")
     console.print("✅ Sending prompt to agent...")
-    
+
     response = agent_tester.evaluate_agent(target_prompt)
-    
+
     console.print("✅ Response received from agent.")
     console.print("✅ Analyzing agent response...")
-    
+
     analysis_result = analyzer.analyze(response, target_prompt)
-    
+
     console.print("✅ Analysis complete.")
     display_single_result(response, analysis_result)
 
