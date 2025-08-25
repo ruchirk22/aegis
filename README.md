@@ -59,7 +59,8 @@ pip install -e .
 For help regarding all commands:
 
 ```bash
-vorak evaluate --help
+vorak --help
+vorak [COMMAND] --help #for specific command-related help
 ```
 
 Run a single prompt evaluation:

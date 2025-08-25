@@ -1,4 +1,4 @@
-# vorak/web_interface/pages/1_📊_Security_Dashboard.py
+# vorak/web_interface/pages/1_Security_Dashboard.py
 
 import streamlit as st
 import pandas as pd
@@ -15,111 +15,94 @@ if project_root not in sys.path:
 from vorak.core.database.manager import DatabaseManager
 
 # --- Page Configuration ---
-st.set_page_config(page_title="vorak Security Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Vorak Security Dashboard", page_icon="🛡️", layout="wide")
 
-st.title("📊 Security Dashboard")
-st.markdown("Visualize historical evaluation results from the central database.")
+st.title("Security & Compliance Dashboard")
+st.markdown("High-level overview of your AI model's security posture and compliance risks.")
 
-# --- Caching the Database Manager ---
 @st.cache_resource
 def get_db_manager():
     return DatabaseManager()
 
 db_manager = get_db_manager()
 
-# --- Data Loading ---
-@st.cache_data(ttl=30) # Cache data for 30 seconds
-def load_data_from_db():
-    try:
-        df = db_manager.get_all_results_as_df()
-        if not df.empty:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            return df.sort_values(by="timestamp", ascending=False)
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error loading data from database: {e}")
-        return pd.DataFrame()
+@st.cache_data(ttl=60)
+def load_data():
+    df = db_manager.get_all_results_as_df()
+    if not df.empty:
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        # Ensure governance columns exist
+        for col in ['governance_nist', 'governance_eu', 'governance_iso']:
+            if col not in df.columns:
+                df[col] = ''
+            df[col] = df[col].fillna('')
+    return df
 
-df = load_data_from_db()
+df = load_data()
 
-# --- Main UI ---
 if not df.empty:
-    st.divider()
-    st.header("Filters")
+    st.sidebar.header("Dashboard Filters")
+    all_models = ["All Models"] + df['model_name'].unique().tolist()
+    selected_model = st.sidebar.selectbox("Filter by Model", options=all_models)
     
-    df_session_filtered = df
+    df_filtered = df[df['model_name'] == selected_model] if selected_model != "All Models" else df
 
-    # --- FIX: Check if session_id column exists before creating the filter ---
-    if 'session_id' in df.columns:
-        all_sessions = ["All Sessions"] + df['session_id'].unique().tolist()
-        selected_session = st.selectbox("Filter by Testing Session", options=all_sessions)
+    # --- KPIs ---
+    st.header("Key Performance Indicators")
+    kpi1, kpi2, kpi3 = st.columns(3)
+    avg_score = df_filtered['vulnerability_score'].mean()
+    non_compliant_rate = (df_filtered[df_filtered['classification'] == 'NON_COMPLIANT'].shape[0] / df_filtered.shape[0]) * 100 if not df_filtered.empty else 0
+    
+    kpi1.metric("Total Tests Run", df_filtered.shape[0])
+    kpi2.metric("Average Vulnerability Score", f"{avg_score:.2f}")
+    kpi3.metric("Non-Compliant Rate", f"{non_compliant_rate:.2f}%")
 
-        if selected_session != "All Sessions":
-            df_session_filtered = df[df['session_id'] == selected_session]
-    else:
-        st.warning("Note: Your database is from an older version. The 'Filter by Session' feature is disabled.")
+    st.divider()
 
-
-    # --- Other Interactive Filters ---
+    # --- Visualizations ---
     col1, col2 = st.columns(2)
     with col1:
-        all_models = df_session_filtered['model_name'].unique()
-        # FIX: Corrected typo from multelect to multiselect
-        selected_models = st.multiselect("Filter by Model", options=all_models, default=all_models)
-    
+        st.subheader("Vulnerability Score Over Time")
+        df_trend = df_filtered.set_index('timestamp').resample('D')['vulnerability_score'].mean().reset_index()
+        fig_trend = px.line(df_trend, x='timestamp', y='vulnerability_score', title="Daily Average Vulnerability Score")
+        st.plotly_chart(fig_trend, use_container_width=True)
+
     with col2:
-        all_categories = df_session_filtered['category'].unique()
-        selected_categories = st.multiselect("Filter by Category", options=all_categories, default=all_categories)
+        st.subheader("Classification Breakdown")
+        classification_counts = df_filtered['classification'].value_counts()
+        fig_bar = px.pie(classification_counts, values=classification_counts.values, names=classification_counts.index,
+                         title="Evaluation Outcomes", hole=.3,
+                         color=classification_counts.index,
+                         color_discrete_map={'NON_COMPLIANT': '#FF4B4B', 'COMPLIANT': '#2ECC71', 'PARTIAL_COMPLIANCE': '#FFA500'})
+        st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Apply all filters
-    df_filtered = df_session_filtered[
-        df_session_filtered['model_name'].isin(selected_models) & 
-        df_session_filtered['category'].isin(selected_categories)
-    ]
+    st.divider()
+    
+    # --- Governance Hotspots ---
+    st.header("Governance & Compliance Hotspots")
+    gcol1, gcol2, gcol3 = st.columns(3)
+    
+    nist_risks = df_filtered[df_filtered['governance_nist'].str.strip() != '']['governance_nist'].str.split(', ').explode().value_counts()
+    eu_risks = df_filtered[df_filtered['governance_eu'].str.strip() != '']['governance_eu'].str.split(', ').explode().value_counts()
+    iso_risks = df_filtered[df_filtered['governance_iso'].str.strip() != '']['governance_iso'].str.split(', ').explode().value_counts()
 
-    if not df_filtered.empty:
-        # (The rest of the visualization code remains the same)
-        st.divider()
-        st.header("Vulnerability Analysis")
-        
-        gcol1, gcol2 = st.columns(2)
-        with gcol1:
-            st.subheader("Vulnerability Heatmap")
-            try:
-                heatmap_data = df_filtered.pivot_table(index='category', columns='model_name', values='vulnerability_score', aggfunc='mean').fillna(0)
-                fig_heatmap = px.imshow(
-                    heatmap_data, 
-                    text_auto=".1f", 
-                    aspect="auto", 
-                    color_continuous_scale='Reds',
-                    labels=dict(x="Model Name", y="Attack Category", color="Avg Score"),
-                    title="Average Vulnerability Score by Model & Category"
-                )
-                st.plotly_chart(fig_heatmap, use_container_width=True)
-            except Exception:
-                st.warning("Could not generate heatmap. This chart requires data from multiple models and categories.")
+    with gcol1:
+        st.subheader("NIST AI RMF")
+        if not nist_risks.empty: st.dataframe(nist_risks)
+        else: st.info("No NIST risks recorded.")
+    with gcol2:
+        st.subheader("EU AI Act")
+        if not eu_risks.empty: st.dataframe(eu_risks)
+        else: st.info("No EU AI Act risks recorded.")
+    with gcol3:
+        st.subheader("ISO/IEC 23894")
+        if not iso_risks.empty: st.dataframe(iso_risks)
+        else: st.info("No ISO/IEC risks recorded.")
 
-        with gcol2:
-            st.subheader("Classification Breakdown")
-            classification_counts = df_filtered['classification'].value_counts()
-            fig_bar = px.bar(
-                classification_counts,
-                x=classification_counts.index,
-                y=classification_counts.values,
-                color=classification_counts.index,
-                labels={'x': 'Classification', 'y': 'Count'},
-                title="Total Evaluation Outcomes",
-                color_discrete_map={
-                    'NON_COMPLIant': 'red', 'COMPLIANT': 'green', 'PARTIAL_COMPLIANCE': 'orange',
-                    'AMBIGUOUS': 'grey', 'ERROR': 'black'
-                }
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-        
-        st.divider()
-        st.header("Detailed Report Data")
+    st.divider()
+
+    # --- Detailed Data ---
+    with st.expander("Detailed Report Data"):
         st.dataframe(df_filtered)
-    else:
-        st.warning("No data matches the current filter settings.")
 else:
-    st.info("No results found in the database. Run some evaluations in the 'Single Prompt' or 'Batch' tabs to populate the dashboard.")
+    st.info("No results found in the database. Run some evaluations in the Sandbox to populate the dashboard.")

@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 import unicodedata
+from .comparison import ComparisonReport, ComparisonResult
 
 class PDF(FPDF, HTMLMixin):
     # This class definition remains unchanged
@@ -156,5 +157,74 @@ def generate_pdf_report(results: list, output_buffer: BytesIO, chart_image_buffe
                 pdf.set_safe_font('Arial', 'B', 10)
                 pdf.cell(0, 7, pdf.safe_text("ISO/IEC 23894:"), 0, 1, 'L')
                 pdf.chapter_body("- " + "\n- ".join(analysis.governance.iso_iec_23894))
+
+    pdf.output(output_buffer)
+
+# --- NEW: Feature 7 - Function to generate a comparison PDF report ---
+def generate_comparison_pdf_report(report: ComparisonReport, output_buffer: BytesIO, chart_image_buffer: BytesIO):
+    """Generates a PDF report comparing two sessions."""
+    pdf = PDF()
+    pdf.add_page()
+    summary = report.summary
+
+    # --- Summary Page ---
+    pdf.chapter_title("Session Comparison Report")
+    pdf.set_safe_font('Arial', 'B', 11)
+    pdf.cell(0, 8, pdf.safe_text(f"Baseline Session (A): {summary.session_a_id}"), 0, 1, 'L')
+    pdf.cell(0, 8, pdf.safe_text(f"Candidate Session (B): {summary.session_b_id}"), 0, 1, 'L')
+    pdf.ln(5)
+
+    pdf.set_safe_font('Arial', 'B', 12)
+    pdf.cell(0, 10, pdf.safe_text("Overall Performance Delta"), 0, 1, 'L')
+    pdf.set_safe_font('Arial', '', 11)
+    
+    delta_color = (0, 128, 0) if summary.avg_score_delta < 0 else (220, 50, 50)
+    delta_sign = "" if summary.avg_score_delta < 0 else "+"
+    pdf.cell(40, 8, pdf.safe_text("Avg. Score (A):"))
+    pdf.cell(0, 8, pdf.safe_text(f"{summary.avg_score_a:.2f}"))
+    pdf.ln()
+    pdf.cell(40, 8, pdf.safe_text("Avg. Score (B):"))
+    pdf.cell(0, 8, pdf.safe_text(f"{summary.avg_score_b:.2f}"))
+    pdf.ln()
+    pdf.set_text_color(*delta_color)
+    pdf.cell(40, 8, pdf.safe_text("Delta:"))
+    pdf.cell(0, 8, pdf.safe_text(f"{delta_sign}{summary.avg_score_delta:.2f}"))
+    pdf.set_text_color(0,0,0)
+    pdf.ln(10)
+
+    pdf.chapter_title("Comparison Breakdown")
+    try:
+        chart_image_buffer.seek(0)
+        pdf.image(chart_image_buffer, x=10, y=None, w=190, type='PNG')
+    except Exception as e:
+        pdf.chapter_body(f"Chart could not be inserted: {e}")
+    
+    # --- Detailed Results Page ---
+    pdf.add_page()
+    pdf.chapter_title("Detailed Prompt Comparison")
+    
+    # Table Header
+    pdf.set_safe_font('Arial', 'B', 9)
+    pdf.cell(30, 7, 'Prompt ID', 1, 0, 'C')
+    pdf.cell(25, 7, 'Score (A)', 1, 0, 'C')
+    pdf.cell(25, 7, 'Score (B)', 1, 0, 'C')
+    pdf.cell(20, 7, 'Delta', 1, 0, 'C')
+    pdf.cell(90, 7, 'Status / Classification Change', 1, 1, 'C')
+
+    pdf.set_safe_font('Arial', '', 8)
+    for res in report.results:
+        pdf.cell(30, 6, pdf.safe_text(res.prompt_id), 1)
+        pdf.cell(25, 6, f"{res.score_a:.1f}", 1, 0, 'C')
+        pdf.cell(25, 6, f"{res.score_b:.1f}", 1, 0, 'C')
+        
+        delta_color = (0, 128, 0) if res.delta < 0 else (220, 50, 50) if res.delta > 0 else (0,0,0)
+        pdf.set_text_color(*delta_color)
+        pdf.cell(20, 6, f"{res.delta:+.1f}", 1, 0, 'C')
+        pdf.set_text_color(0,0,0)
+        
+        status_text = res.status
+        if res.classification_a != res.classification_b:
+            status_text += f" ({res.classification_a} -> {res.classification_b})"
+        pdf.cell(90, 6, pdf.safe_text(status_text), 1, 1)
 
     pdf.output(output_buffer)
