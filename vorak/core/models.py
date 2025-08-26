@@ -21,13 +21,14 @@ class EvaluationMode(str, Enum):
     ANALYSIS_ONLY = "analysis-only"
     SCENARIO = "scenario"
 
-# --- NEW: Feature 5 - Dataclass for Governance Results ---
 @dataclass
 class GovernanceResult:
     """A data class to hold governance and compliance mapping results."""
     nist_ai_rmf: List[str] = field(default_factory=list)
     eu_ai_act: List[str] = field(default_factory=list)
     iso_iec_23894: List[str] = field(default_factory=list)
+    # --- NEW: Feature 2 - Add MITRE ATLAS mappings ---
+    mitre_atlas: List[str] = field(default_factory=list)
 
 @dataclass
 class AdversarialPrompt:
@@ -38,8 +39,6 @@ class AdversarialPrompt:
     severity: str
     prompt_text: str
     expected_behavior: str
-    success_indicators: List[str] = field(default_factory=list)
-    failure_indicators: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     image_data: Optional[bytes] = None
 
@@ -48,8 +47,7 @@ class AdversarialPrompt:
         return {
             "id": self.id, "category": self.category, "subcategory": self.subcategory,
             "severity": self.severity, "prompt_text": self.prompt_text,
-            "expected_behavior": self.expected_behavior, "success_indicators": self.success_indicators,
-            "failure_indicators": self.failure_indicators, "tags": self.tags,
+            "expected_behavior": self.expected_behavior, "tags": self.tags,
         }
 
 @dataclass
@@ -61,7 +59,6 @@ class ModelResponse:
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
 
-# --- MODIFIED: Feature 5 - Add governance results to the main analysis ---
 @dataclass
 class AnalysisResult:
     """A data class to hold the results of a response analysis."""

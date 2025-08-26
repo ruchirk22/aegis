@@ -74,6 +74,11 @@ class PromptManager:
         self._ensure_loaded()
         return self.prompts
 
+    def id_exists(self, prompt_id: str) -> bool:
+        """Checks if a prompt with the given ID already exists."""
+        self._ensure_loaded()
+        return any(p.id == prompt_id for p in self.prompts)
+
     def filter_by_category(self, category: str) -> List[AdversarialPrompt]:
         """Filters prompts by a specific category (case-insensitive)."""
         self._ensure_loaded()
@@ -89,7 +94,7 @@ class PromptManager:
         Adds a new prompt to the library and optionally saves it back to the file.
         """
         self._ensure_loaded()
-        if any(p.id == prompt.id for p in self.prompts):
+        if self.id_exists(prompt.id):
             print(f"Error: Prompt with ID '{prompt.id}' already exists.")
             return False
 
@@ -112,4 +117,3 @@ class PromptManager:
             print(f"Successfully saved {len(self.prompts)} prompts to '{self._library_path}'.")
         except IOError as e:
             print(f"Error writing to prompt library file '{self._library_path}': {e}")
-

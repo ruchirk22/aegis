@@ -18,6 +18,7 @@ import plotly.express as px
 import pandas as pd
 from rich.text import Text
 from rich.tree import Tree
+from rich.markdown import Markdown
 
 from vorak.core.prompt_manager import PromptManager
 from vorak.core.connectors import (
@@ -41,6 +42,11 @@ app = typer.Typer(
     help="Vorak: Vulnerability Oriented Red-teaming for AI Knowledge",
     add_completion=False,
 )
+
+# --- NEW: Create a new Typer app for the 'prompt' command group ---
+prompt_app = typer.Typer(name="prompt", help="Manage and contribute to the prompt library.")
+app.add_typer(prompt_app)
+
 console = Console()
 
 def get_connector(model_identifier: str) -> ModelConnector:
@@ -102,22 +108,32 @@ def convert_result_to_flat_dict(result_data: Dict[str, Any], session_id: str) ->
         "governance_iso": ", ".join(gov_data.iso_iec_23894) if gov_data else "",
     }
 
+# --- MODIFIED: Added MITRE ATLAS to the governance display ---
 def display_governance_risks(governance: Optional[GovernanceResult]):
     """Displays governance and compliance risks in a formatted tree."""
     if not governance:
         return
+    
     tree = Tree("[bold bright_blue]🏛️ Governance & Compliance Risks[/bold bright_blue]", guide_style="bright_blue")
+    
     if governance.nist_ai_rmf:
         nist_branch = tree.add("[bold]NIST AI RMF[/bold]")
         for item in governance.nist_ai_rmf: nist_branch.add(f"[cyan]{item}")
+            
     if governance.eu_ai_act:
         eu_branch = tree.add("[bold]EU AI Act[/bold]")
         for item in governance.eu_ai_act: eu_branch.add(f"[cyan]{item}")
+
     if governance.iso_iec_23894:
         iso_branch = tree.add("[bold]ISO/IEC 23894[/bold]")
         for item in governance.iso_iec_23894: iso_branch.add(f"[cyan]{item}")
-    console.print(tree)
 
+    if governance.mitre_atlas:
+        atlas_branch = tree.add("[bold]MITRE ATLAS[/bold]")
+        for item in governance.mitre_atlas: atlas_branch.add(f"[cyan]{item}")
+            
+    console.print(tree)
+    
 def display_single_result(response: ModelResponse, analysis: AnalysisResult, title: str = "Vorak Evaluation Result"):
     """Displays a single evaluation result in a formatted table and panels."""
     table = Table(title=title, show_header=True, header_style="bold magenta")
@@ -500,6 +516,115 @@ def generate_prompts(
                 count += 1
         manager.save_library()
         console.print(f"✅ [bold green]Successfully added {count} new prompts to the main library.[/bold green]")
+
+# --- NEW: Feature 1 - Community Contribution Command ---
+@prompt_app.command("contribute")
+def contribute_prompts(
+    file: str = typer.Option(..., "--file", "-f", help="Path to a JSON file containing new prompts to contribute."),
+):
+    """Validate and prepare new prompts for community contribution."""
+    console.print(f"[bold cyan]🔍 Validating contribution file: '{file}'...[/bold cyan]")
+    
+    if not os.path.exists(file):
+        console.print(f"[bold red]Error: File not found at '{file}'.[/bold red]")
+        raise typer.Exit(code=1)
+
+    try:
+        with open(file, 'r', encoding='utf-8') as f:
+            new_prompts_data = json.load(f)
+    except json.JSONDecodeError:
+        console.print(f"[bold red]Error: Invalid JSON format in '{file}'.[/bold red]")
+        raise typer.Exit(code=1)
+
+    if not isinstance(new_prompts_data, list):
+        console.print(f"[bold red]Error: The JSON file must contain a list of prompt objects.[/bold red]")
+        raise typer.Exit(code=1)
+
+    manager = PromptManager()
+    validated_prompts = []
+    errors = []
+
+    for i, data in enumerate(new_prompts_data):
+        try:
+            # Validate structure by attempting to create the dataclass
+            prompt = AdversarialPrompt(**data)
+            
+            # Check for duplicate IDs
+            if manager.id_exists(prompt.id):
+                errors.append(f"Prompt {i+1} (ID: '{prompt.id}') failed validation: ID already exists in the library.")
+            else:
+                validated_prompts.append(prompt)
+        except TypeError as e:
+            # This catches missing keys or incorrect field names
+            errors.append(f"Prompt {i+1} (ID: '{data.get('id', 'N/A')}') failed validation: {e}")
+
+    if errors:
+        console.print("[bold red]Validation failed. Please fix the following errors:[/bold red]")
+        for error in errors:
+            console.print(f"- {error}")
+        raise typer.Exit(code=1)
+
+    console.print(f"[bold green]✅ Validation successful! {len(validated_prompts)} new prompts are ready for contribution.[/bold green]")
+    console.print("\n[bold]Please copy the text below and paste it into a new GitHub issue or pull request:[/bold]")
+    
+    # Generate formatted output for GitHub
+    github_body = f"### New Prompt Contribution\n\n**Number of new prompts:** {len(validated_prompts)}\n\n"
+    github_body += "--- \n\n"
+    for prompt in validated_prompts:
+        github_body += f"**ID:** `{prompt.id}`\n"
+        github_body += f"**Category:** {prompt.category}\n"
+        github_body += f"**Severity:** {prompt.severity}\n"
+        github_body += "**Prompt Text:**\n"
+        github_body += f"```\n{prompt.prompt_text}\n```\n"
+        github_body += "---\n"
+        
+    console.print(Panel(Markdown(github_body), title="[bold]Contribution Body[/bold]", border_style="yellow"))
+
+# --- NEW: Command to clean up the prompt library ---
+@prompt_app.command("cleanup")
+def cleanup_library():
+    """Removes unused fields from the main prompt_library.json file."""
+    console.print("[bold cyan]🧹 Cleaning up the prompt library...[/bold cyan]")
+    manager = PromptManager()
+    
+    # The to_dict() method in our AdversarialPrompt model already
+    # returns only the fields we care about. We just need to load
+    # and re-save the library.
+    
+    # This forces a load from the file
+    all_prompts = manager.get_all()
+    
+    if not all_prompts:
+        console.print("[bold red]Error: Could not load any prompts from the library.[/bold red]")
+        raise typer.Exit(code=1)
+        
+    # The save_library method will write the cleaned data back to the file
+    manager.save_library()
+    
+    console.print("[bold green]✅ Prompt library has been successfully cleaned and formatted![/bold green]")
+
+# --- NEW: Command to clean up the prompt library ---
+@prompt_app.command("cleanup")
+def cleanup_library():
+    """Removes unused fields from the main prompt_library.json file."""
+    console.print("[bold cyan]🧹 Cleaning up the prompt library...[/bold cyan]")
+    manager = PromptManager()
+    
+    # The to_dict() method in our AdversarialPrompt model already
+    # returns only the fields we care about. We just need to load
+    # and re-save the library.
+    
+    # This forces a load from the file
+    all_prompts = manager.get_all()
+    
+    if not all_prompts:
+        console.print("[bold red]Error: Could not load any prompts from the library.[/bold red]")
+        raise typer.Exit(code=1)
+        
+    # The save_library method will write the cleaned data back to the file
+    manager.save_library()
+    
+    console.print("[bold green]✅ Prompt library has been successfully cleaned and formatted![/bold green]")
 
 
 if __name__ == "__main__":
