@@ -167,7 +167,7 @@ vorak run --playbook my_security_plan.yaml
 Launch the interactive Streamlit UI for a full GUI experience, including a security dashboard and session comparison tools.
 
 ```bash
-streamlit run vorak/web_interface/Home.py
+vorak-ui
 ```
 
 ---

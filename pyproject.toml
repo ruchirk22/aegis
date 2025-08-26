@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vorak"
-version = "1.0.5"
+version = "1.0.6"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
@@ -53,6 +53,7 @@ local = [
 
 [project.scripts]
 vorak = "vorak.cli:app"
+vorak-ui = "vorak.web_interface.launcher:main"
 
 [tool.setuptools.package-data]
 "vorak.prompts" = ["*.json"]

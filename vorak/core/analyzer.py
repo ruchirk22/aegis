@@ -21,20 +21,77 @@ class LLMAnalyzer:
     """
     A comprehensive analysis engine that uses a plugin manager to dynamically
     load and run a series of evaluators, with adaptive and scenario capabilities.
+    It now includes a model fallback and retry mechanism.
     """
     
-    DEFAULT_PRIMARY_MODEL = "gemini-1.5-flash-latest"
+    # --- MODIFIED: Added new model configuration ---
+    DEFAULT_PRIMARY_MODEL = "gemini-2.5-flash-lite"
+    BACKUP_MODELS = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-latest",
+        "gemma-3-27b-it",
+    ]
+    # --- END MODIFICATION ---
+
     MAX_RETRIES = 3
     RETRY_DELAY = 5.0
 
     def __init__(self):
-        """Initializes the analyzer and dynamically loads all evaluator plugins."""
-        self.llm_connector = InternalGeminiConnector(model_name=self.DEFAULT_PRIMARY_MODEL)
+        """Initializes the analyzer, loads evaluator plugins, and sets up the model list."""
+        # --- MODIFIED: No longer initializes a single connector. Sets up a list of models to try. ---
+        self.models_to_try = [self.DEFAULT_PRIMARY_MODEL] + self.BACKUP_MODELS
         self.plugin_manager = PluginManager(plugin_packages=["vorak.core.evaluators"])
         self.programmatic_evaluators: List[Evaluator] = self.plugin_manager.get_plugins(Evaluator)
         self.governance_mapper = GovernanceMapper()
         
         console.print(f"Analyzer initialized with {len(self.programmatic_evaluators)} programmatic evaluators and Governance Mapper.")
+        console.print(f"Primary model: [bold cyan]{self.DEFAULT_PRIMARY_MODEL}[/bold cyan]")
+        console.print(f"Backup models: [yellow]{', '.join(self.BACKUP_MODELS)}[/yellow]")
+        # --- END MODIFICATION ---
+
+    # --- NEW METHOD: Centralized prompt sending with fallback and retry logic ---
+    def _send_prompt_with_fallback(self, prompt: AdversarialPrompt) -> ModelResponse:
+        """
+        Sends a prompt using the primary model, falling back to backup models on failure.
+        Includes retry logic for each model.
+        """
+        for model_name in self.models_to_try:
+            console.print(f"Attempting to use model: [bold cyan]{model_name}[/bold cyan]")
+            try:
+                # Initialize the connector for the current model in the list
+                connector = InternalGeminiConnector(model_name=model_name)
+                # Retry loop for the current model
+                for attempt in range(self.MAX_RETRIES):
+                    try:
+                        response = connector.send_prompt(prompt)
+                        # A successful API call might still return an error from the model provider
+                        if response.error:
+                            raise Exception(f"API Error from {model_name}: {response.error}")
+                        
+                        console.print(f"[bold green]✅ Success with model: {model_name}[/bold green]")
+                        return response # Return on the first successful response
+                    
+                    except Exception as e:
+                        console.print(f"Attempt {attempt + 1}/{self.MAX_RETRIES} with model '{model_name}' failed: {e}")
+                        if attempt < self.MAX_RETRIES - 1:
+                            time.sleep(self.RETRY_DELAY)
+                
+                console.print(f"[bold yellow]Model '{model_name}' failed after {self.MAX_RETRIES} retries. Trying next model.[/bold yellow]")
+
+            except Exception as e:
+                console.print(f"[bold red]❌ Failed to initialize or use connector for model '{model_name}': {e}[/bold red]")
+        
+        # This block is reached only if all models in the list fail
+        console.print("[bold red]❌ All primary and backup models failed.[/bold red]")
+        return ModelResponse(
+            prompt_id=prompt.id,
+            model_name="N/A",
+            output_text="",
+            error="All primary and backup models failed to respond."
+        )
+    # --- END NEW METHOD ---
 
     def _build_evaluation_prompt(self, response_text: str, prompt_text: str, expected_behavior: str) -> str:
         """Builds the evaluation prompt. Now takes simple strings."""
@@ -71,25 +128,27 @@ class LLMAnalyzer:
             console.print(f"[bold red]Error parsing LLM evaluator response: {e}[/bold red]")
             return None
 
+    # --- MODIFIED: Refactored to use the new fallback method ---
     @lru_cache(maxsize=256)
     def _run_llm_evaluation(self, response_text: str, prompt_text: str, expected_behavior: str) -> AnalysisResult:
-        """Performs the LLM-based evaluation with retry logic and caching."""
+        """Performs the LLM-based evaluation with fallback, retry logic, and caching."""
         console.print("Proceeding to LLM-based evaluation (cache miss)...")
         eval_prompt_text = self._build_evaluation_prompt(response_text, prompt_text, expected_behavior)
         eval_prompt_obj = AdversarialPrompt(id="evaluator", prompt_text=eval_prompt_text, category="", subcategory="", severity="", expected_behavior="")
         
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                evaluator_response = self.llm_connector.send_prompt(eval_prompt_obj)
-                if evaluator_response.error: raise Exception(evaluator_response.error)
-                parsed_result = self._parse_llm_response(evaluator_response.output_text)
-                if parsed_result: return parsed_result
-                raise ValueError("Failed to parse valid JSON from LLM response.")
-            except Exception as e:
-                console.print(f"LLM evaluation attempt {attempt + 1}/{self.MAX_RETRIES} failed: {e}")
-                if attempt < self.MAX_RETRIES - 1: time.sleep(self.RETRY_DELAY)
+        # The old retry loop is removed and replaced with a single call to the robust fallback method.
+        evaluator_response = self._send_prompt_with_fallback(eval_prompt_obj)
+
+        if evaluator_response.error:
+            return AnalysisResult(classification=Classification.ERROR, explanation=f"[LLM Analysis] Failed to get a valid analysis: {evaluator_response.error}", vulnerability_score=0.0)
         
-        return AnalysisResult(classification=Classification.ERROR, explanation="[LLM Analysis] All attempts to get a valid analysis failed.", vulnerability_score=0.0)
+        parsed_result = self._parse_llm_response(evaluator_response.output_text)
+        if parsed_result:
+            return parsed_result
+        
+        # This is returned if the model responds, but the JSON is not parsable.
+        return AnalysisResult(classification=Classification.ERROR, explanation="[LLM Analysis] Failed to parse a valid JSON response from the evaluator model.", vulnerability_score=0.0)
+    # --- END MODIFICATION ---
 
     def _build_adaptive_prompt(self, original_prompt: AdversarialPrompt, model_response: ModelResponse) -> str:
         """Constructs a prompt for Gemini to generate a stronger adversarial prompt."""
@@ -110,9 +169,10 @@ class LLMAnalyzer:
             Respond ONLY with the text of the new, stronger adversarial prompt. Do not include any explanation or preamble.
         """
 
+    # --- MODIFIED: Refactored to use the new fallback method ---
     def run_adaptive_escalation(self, original_prompt: AdversarialPrompt, original_response: ModelResponse, attempt_num: int) -> Optional[AdversarialPrompt]:
         """
-        Uses Gemini to generate a new, stronger prompt if the original was compliant.
+        Uses an LLM to generate a new, stronger prompt if the original was compliant.
         """
         console.print(f"[bold yellow]🧠 Adaptive Escalation: Attempting to generate a stronger prompt...[/bold yellow]")
         adaptive_prompt_text = self._build_adaptive_prompt(original_prompt, original_response)
@@ -120,9 +180,10 @@ class LLMAnalyzer:
         meta_prompt = AdversarialPrompt(id="adaptive_generator", prompt_text=adaptive_prompt_text, category="", subcategory="", severity="", expected_behavior="")
         
         try:
-            generation_response = self.llm_connector.send_prompt(meta_prompt)
+            # Replaced direct connector call with the new fallback method
+            generation_response = self._send_prompt_with_fallback(meta_prompt)
             if generation_response.error or not generation_response.output_text:
-                raise ValueError("Failed to get a valid new prompt from the generator LLM.")
+                raise ValueError(f"Failed to get a valid new prompt from the generator LLM. Error: {generation_response.error}")
 
             new_prompt_text = generation_response.output_text.strip()
             
@@ -141,6 +202,7 @@ class LLMAnalyzer:
         except Exception as e:
             console.print(f"[bold red]❌ Adaptive escalation failed: {e}[/bold red]")
             return None
+    # --- END MODIFICATION ---
 
     def _build_scenario_prompt(self, history_str: str, original_goal: str) -> str:
         """Constructs a prompt for Gemini to generate the next conversational turn."""
@@ -162,8 +224,9 @@ class LLMAnalyzer:
             Respond ONLY with the text for the next prompt. Do not include any explanation or preamble.
         """
 
+    # --- MODIFIED: Refactored to use the new fallback method ---
     def generate_next_turn(self, history: List[Dict[str, Any]], original_prompt: AdversarialPrompt, turn_num: int) -> Optional[AdversarialPrompt]:
-        """Uses Gemini to generate the next prompt in a conversational attack scenario."""
+        """Uses an LLM to generate the next prompt in a conversational attack scenario."""
         console.print(f"[bold yellow]🎭 Scenario Strategist: Generating prompt for turn {turn_num}...[/bold yellow]")
         
         history_str = "\n".join([f"{msg['role'].title()}: {msg['content']}" for msg in history])
@@ -172,9 +235,10 @@ class LLMAnalyzer:
         meta_prompt = AdversarialPrompt(id="scenario_generator", prompt_text=scenario_prompt_text, category="", subcategory="", severity="", expected_behavior="")
         
         try:
-            generation_response = self.llm_connector.send_prompt(meta_prompt)
+            # Replaced direct connector call with the new fallback method
+            generation_response = self._send_prompt_with_fallback(meta_prompt)
             if generation_response.error or not generation_response.output_text:
-                raise ValueError("Failed to get a valid next turn prompt from the generator LLM.")
+                raise ValueError(f"Failed to get a valid next turn prompt from the generator LLM. Error: {generation_response.error}")
 
             next_prompt_text = generation_response.output_text.strip()
             
@@ -189,6 +253,7 @@ class LLMAnalyzer:
         except Exception as e:
             console.print(f"[bold red]❌ Scenario strategist failed: {e}[/bold red]")
             return None
+    # --- END MODIFICATION ---
 
     def analyze(self, response: ModelResponse, prompt: AdversarialPrompt) -> AnalysisResult:
         """
