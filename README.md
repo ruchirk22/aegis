@@ -43,6 +43,13 @@ Install the latest release from PyPI:
 pip install vorak
 ```
 
+If you want to test local models as well, download optional dependencies:
+
+```bash
+pip install "vorak[local]"
+# This will install heavy dependencies
+```
+
 For development setup (cloning and local installation):
 
 ```bash
@@ -77,6 +84,8 @@ vorak batch-evaluate --category "Jailbreaking_Role-Playing" \
     --output-json results.json
 ```
 
+If you are using local models, make sure to install the required dependencies.
+
 ---
 
 ## Configuration
@@ -87,6 +96,7 @@ Vorak uses environment variables for model provider authentication. Create a `.e
 GEMINI_API_KEY=your_gemini_api_key
 OPENAI_API_KEY=your_openai_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 ---
@@ -99,6 +109,7 @@ View available commands:
 
 ```bash
 vorak --help
+vorak [COMMAND] --help #for specific command-related help
 ```
 
 ### Web Interface
