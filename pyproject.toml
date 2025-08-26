@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vorak"
-version = "1.0.4"
+version = "1.0.5"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
@@ -48,7 +48,7 @@ local = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/ruchirk22/vorak"
+"Homepage" = "https://github.com/ruchirk22/vorak.git"
 "Bug Tracker" = "https://github.com/ruchirk22/vorak/issues"
 
 [project.scripts]
