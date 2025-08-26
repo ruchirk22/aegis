@@ -9,6 +9,7 @@ from io import BytesIO
 from enum import Enum
 from datetime import datetime
 import uuid
+import yaml
 
 from rich.console import Console
 from rich.table import Table
@@ -27,7 +28,7 @@ from vorak.core.connectors import (
 )
 from vorak.core.models import (
     ModelResponse, AnalysisResult, AdversarialPrompt, EvaluationMode,
-    Classification, GovernanceResult
+    Classification, GovernanceResult, PromptGenerationStrategy
 )
 from vorak.core.analyzer import LLMAnalyzer
 # --- MODIFIED: Import DatabaseManager ---
@@ -133,7 +134,7 @@ def display_governance_risks(governance: Optional[GovernanceResult]):
         for item in governance.mitre_atlas: atlas_branch.add(f"[cyan]{item}")
             
     console.print(tree)
-    
+
 def display_single_result(response: ModelResponse, analysis: AnalysisResult, title: str = "Vorak Evaluation Result"):
     """Displays a single evaluation result in a formatted table and panels."""
     table = Table(title=title, show_header=True, header_style="bold magenta")
@@ -486,19 +487,29 @@ def add_prompt(
     else:
         console.print(f"❌ [bold red]Failed to add prompt. An entry with ID '{id}' may already exist.[/bold red]")
 
+# --- MODIFIED: Update the generate-prompts command ---
 @app.command(name="generate-prompts")
 def generate_prompts(
     category: str = typer.Option(..., "--category", "-c", help="The base category to generate prompts from."),
     num: int = typer.Option(10, "--num", "-n", help="Number of prompts to generate."),
-    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="JSON file to save the generated prompts. If not provided, prompts are added to the main library."),
+    strategy: PromptGenerationStrategy = typer.Option(
+        PromptGenerationStrategy.SYNONYM,
+        "--strategy",
+        "-s",
+        help="The augmentation strategy to use.",
+        case_sensitive=False,
+    ),
+    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="JSON file to save the generated prompts."),
 ):
     """Generate new adversarial prompts using augmentation techniques."""
-    console.print(f"[bold cyan]🧬 Starting prompt generation...[/bold cyan]")
+    console.print(f"[bold cyan]🧬 Starting prompt generation with '{strategy.value}' strategy...[/bold cyan]")
     generator = PromptGenerator()
-    new_prompts = generator.generate_prompts(base_category=category, num_to_generate=num)
+    new_prompts = generator.generate_prompts(base_category=category, num_to_generate=num, strategy=strategy.value)
+    
     if not new_prompts:
         console.print("[bold red]❌ Prompt generation failed. See errors above.[/bold red]")
         raise typer.Exit(code=1)
+
     if output_file:
         prompts_as_dicts = [p.to_dict() for p in new_prompts]
         try:
@@ -516,6 +527,7 @@ def generate_prompts(
                 count += 1
         manager.save_library()
         console.print(f"✅ [bold green]Successfully added {count} new prompts to the main library.[/bold green]")
+
 
 # --- NEW: Feature 1 - Community Contribution Command ---
 @prompt_app.command("contribute")
@@ -626,6 +638,87 @@ def cleanup_library():
     
     console.print("[bold green]✅ Prompt library has been successfully cleaned and formatted![/bold green]")
 
+@app.command("run")
+def run_playbook(
+    playbook_file: str = typer.Option(..., "--playbook", "-p", help="Path to the YAML playbook file to execute."),
+):
+    """Execute a multi-step testing plan from a YAML playbook."""
+    console.print(f"[bold cyan]▶️  Executing playbook: '{playbook_file}'[/bold cyan]")
+
+    if not os.path.exists(playbook_file):
+        console.print(f"[bold red]Error: Playbook file not found at '{playbook_file}'.[/bold red]")
+        raise typer.Exit(code=1)
+
+    try:
+        with open(playbook_file, 'r', encoding='utf-8') as f:
+            playbook = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        console.print(f"[bold red]Error parsing YAML file: {e}[/bold red]")
+        raise typer.Exit(code=1)
+
+    if not isinstance(playbook, list):
+        console.print("[bold red]Error: Playbook must be a list of steps.[/bold red]")
+        raise typer.Exit(code=1)
+    
+    # Instantiate core components once
+    db_manager = DatabaseManager()
+    analyzer = LLMAnalyzer()
+    prompt_manager = PromptManager()
+
+    for i, step in enumerate(playbook):
+        step_name = step.get("name", f"Step {i+1}")
+        command = step.get("command")
+        params = step.get("params", {})
+        
+        console.rule(f"[bold]Executing: {step_name}[/bold]")
+
+        if not command or not isinstance(params, dict):
+            console.print(f"[bold red]Skipping invalid step '{step_name}': Missing 'command' or 'params'.[/bold red]")
+            continue
+
+        try:
+            # We call the underlying logic directly instead of using typer.invoke
+            if command == "evaluate":
+                # Re-implement the core logic of the 'evaluate' command
+                session_id = f"playbook_evaluate_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                console.print(f"Session ID: [bold yellow]{session_id}[/bold yellow]")
+                connector = get_connector(params["model"])
+                prompt = next((p for p in prompt_manager.get_all() if p.id == params["prompt_id"]), None)
+                if not prompt:
+                    console.print(f"[bold red]Error in step '{step_name}': Prompt ID '{params['prompt_id']}' not found.[/bold red]")
+                    continue
+                
+                response = connector.send_prompt(prompt)
+                analysis = analyzer.analyze(response, prompt)
+                result_data = {"prompt": prompt, "response": response, "analysis": analysis}
+                db_manager.insert_result(convert_result_to_flat_dict(result_data, session_id))
+                display_single_result(response, analysis)
+
+            elif command == "batch-evaluate":
+                # Re-implement the core logic of the 'batch-evaluate' command
+                session_id = f"playbook_batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                console.print(f"Session ID: [bold yellow]{session_id}[/bold yellow]")
+                connector = get_connector(params["model"])
+                prompts_to_run = prompt_manager.filter_by_category(params["category"])
+                
+                with Progress() as progress:
+                    task = progress.add_task(f"[green]Running batch for '{params['category']}'...", total=len(prompts_to_run))
+                    for p in prompts_to_run:
+                        response = connector.send_prompt(p)
+                        analysis = analyzer.analyze(response, p)
+                        result_data = {"prompt": p, "response": response, "analysis": analysis}
+                        db_manager.insert_result(convert_result_to_flat_dict(result_data, session_id))
+                        progress.update(task, advance=1)
+                console.print(f"[bold green]✅ Batch evaluation for '{params['category']}' complete.[/bold green]")
+            else:
+                console.print(f"[bold red]Skipping step '{step_name}': Unknown command '{command}'.[/bold red]")
+
+        except KeyError as e:
+            console.print(f"[bold red]Error in step '{step_name}': Missing required parameter {e}.[/bold red]")
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred during step '{step_name}': {e}[/bold red]")
+
+    console.rule("[bold green]Playbook execution finished[/bold green]")
 
 if __name__ == "__main__":
     app()

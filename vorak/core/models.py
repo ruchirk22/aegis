@@ -21,13 +21,18 @@ class EvaluationMode(str, Enum):
     ANALYSIS_ONLY = "analysis-only"
     SCENARIO = "scenario"
 
+# --- NEW: Enum for prompt generation strategies ---
+class PromptGenerationStrategy(str, Enum):
+    """Enum for the different prompt generation strategies."""
+    SYNONYM = "synonym"
+    ADVERSARIAL_PHRASING = "adversarial_phrasing"
+
 @dataclass
 class GovernanceResult:
     """A data class to hold governance and compliance mapping results."""
     nist_ai_rmf: List[str] = field(default_factory=list)
     eu_ai_act: List[str] = field(default_factory=list)
     iso_iec_23894: List[str] = field(default_factory=list)
-    # --- NEW: Feature 2 - Add MITRE ATLAS mappings ---
     mitre_atlas: List[str] = field(default_factory=list)
 
 @dataclass

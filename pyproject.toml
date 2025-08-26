@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vorak"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
   { name = "Ruchir Kulkarni", email = "ruchirkulkarni22@gmail.com" },
 ]
@@ -38,7 +38,8 @@ dependencies = [
     "torch",
     "nlpaug",
     "textattack",
-    "seaborn"
+    "seaborn",
+    "pyyaml"
 ]
 
 [project.urls]
