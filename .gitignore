@@ -18,3 +18,4 @@ vorak/*.db
 .DS_Store
 vorak_results.db
 models/
+publish.sh
